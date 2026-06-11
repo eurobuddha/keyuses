@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import org.minima.objects.Address;
+import org.minima.objects.base.MiniData;
 import org.minima.utils.json.JSONArray;
 import org.minima.utils.json.JSONObject;
 
@@ -82,6 +83,13 @@ public class KeyUsesServer {
             return;
         }
 
+        // Direct address lookup: ?addrs=Mx...,0x...  (scan any address, not just your own keys)
+        String addrsParam = paramValue(query, "addrs");
+        if (addrsParam != null && !addrsParam.trim().isEmpty()) {
+            handleAddrs(ex, addrsParam);
+            return;
+        }
+
         String keysParam = paramValue(query, "keys");
         if (keysParam == null || keysParam.trim().isEmpty()) {
             send(ex, 400, "{\"status\":false,\"error\":\"no keys parameter\"}");
@@ -98,9 +106,11 @@ public class KeyUsesServer {
         for (String pkraw : pks) {
             String pk = pkraw.trim();
             if (pk.isEmpty()) continue;
-            String address;
+            String address, miniaddress;
             try {
-                address = new Address("RETURN SIGNEDBY(" + pk + ")").getAddressData().to0xString();
+                Address ad = new Address("RETURN SIGNEDBY(" + pk + ")");
+                address = ad.getAddressData().to0xString();
+                miniaddress = ad.getMinimaAddress();
             } catch (Exception e) {
                 continue; // skip malformed pubkey
             }
@@ -108,6 +118,7 @@ public class KeyUsesServer {
             JSONObject j = new JSONObject();
             j.put("publickey", pk);
             j.put("address", address);
+            j.put("miniaddress", miniaddress);
             j.put("spend_blocks", v == null ? 0 : v[0]);
             j.put("spent_coins", v == null ? 0 : v[1]);
             j.put("firstblock", v == null ? -1 : v[2]);
@@ -119,6 +130,44 @@ public class KeyUsesServer {
         resp.put("status", true);
         resp.put("archive_tip", ARCHIVE_TIP);
         resp.put("keys", out);
+        send(ex, 200, resp.toString());
+    }
+
+    static void handleAddrs(HttpExchange ex, String addrsParam) throws IOException {
+        String[] addrs = addrsParam.split(",");
+        if (addrs.length > MAX_KEYS) { send(ex, 400, "{\"status\":false,\"error\":\"too many addresses\"}"); return; }
+
+        JSONArray out = new JSONArray();
+        for (String raw : addrs) {
+            String input = raw.trim();
+            if (input.isEmpty()) continue;
+            String hex, mini;
+            try {
+                if (input.toLowerCase().startsWith("mx")) hex = Address.convertMinimaAddress(input).to0xString();
+                else hex = new MiniData(input).to0xString();
+                mini = new Address(new MiniData(hex)).getMinimaAddress();
+            } catch (Exception e) {
+                JSONObject bad = new JSONObject();
+                bad.put("input", input);
+                bad.put("error", "not a valid Mx or 0x address");
+                out.add(bad);
+                continue;
+            }
+            long[] v = INDEX.get(hex.toUpperCase());
+            JSONObject j = new JSONObject();
+            j.put("input", input);
+            j.put("address", hex);
+            j.put("miniaddress", mini);
+            j.put("spend_blocks", v == null ? 0 : v[0]);
+            j.put("spent_coins", v == null ? 0 : v[1]);
+            j.put("firstblock", v == null ? -1 : v[2]);
+            j.put("lastblock", v == null ? -1 : v[3]);
+            out.add(j);
+        }
+        JSONObject resp = new JSONObject();
+        resp.put("status", true);
+        resp.put("archive_tip", ARCHIVE_TIP);
+        resp.put("addresses", out);
         send(ex, 200, resp.toString());
     }
 

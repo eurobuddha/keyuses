@@ -27,6 +27,16 @@
         .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #ff5e3a); color: #fff; font-family: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: opacity 0.3s, transform 0.15s; }
         .btn:hover { opacity: 0.92; } .btn:active { transform: scale(0.99); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         textarea { width: 100%; min-height: 110px; padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text); font-family: monospace; font-size: 0.75rem; outline: none; resize: vertical; margin-bottom: 12px; }
+        input[type="text"] { width: 100%; padding: 12px 14px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text); font-family: monospace; font-size: 0.78rem; outline: none; margin-bottom: 12px; }
+        input[type="text"]:focus { border-color: rgba(247,147,26,0.3); }
+        input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+        .btn-sec:hover { border-color: rgba(247,147,26,0.3); color: var(--text); }
+        .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; font-weight: 600; }
+        .addr-result { margin-top: 14px; padding: 14px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); font-size: 0.82rem; line-height: 1.6; }
+        .addr-result .big { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
+        .addr-result .amono2 { font-family: monospace; font-size: 0.7rem; color: var(--text-dim); word-break: break-all; }
+        .addr-result .dim { color: var(--text-dim); font-size: 0.74rem; }
         .note { font-size: 0.72rem; color: var(--text-dim); line-height: 1.6; margin-top: 12px; } .note strong { color: var(--text); font-weight: 600; }
         .hidden { display: none; }
         .verdict { border-radius: 14px; padding: 22px; margin-bottom: 18px; text-align: center; border: 1px solid; }
@@ -43,6 +53,12 @@
         th:first-child, td:first-child { text-align: left; }
         th { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
         td.mono { font-family: monospace; color: var(--text-dim); }
+        td.addr { cursor: pointer; max-width: 340px; }
+        td.addr .kn { color: var(--text-dim); font-size: 0.7rem; margin-right: 6px; }
+        td.addr .amono { font-family: monospace; font-size: 0.68rem; color: var(--text-dim); word-break: break-all; }
+        td.addr:hover .amono { color: var(--accent); }
+        td.addr .copyhint { font-size: 0.6rem; color: rgba(255,255,255,0.25); margin-left: 6px; }
+        td.addr .copied { color: var(--ok); font-size: 0.6rem; margin-left: 6px; opacity: 0; transition: opacity 0.2s; }
         .chip { display:inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.66rem; font-weight: 700; }
         .chip.ok { background: rgba(74,222,128,0.12); color: var(--ok); }
         .chip.risk { background: rgba(248,113,113,0.14); color: var(--risk); }
@@ -85,13 +101,21 @@
         <div class="status" id="statusBox"></div>
     </div>
 
+    <div class="card">
+        <span class="section-label">Scan any address</span>
+        <input type="text" id="addrInput" placeholder="Paste any Mx… or 0x… address" />
+        <button class="btn btn-sec" id="scanAddrBtn" onclick="scanAddress()">Scan address</button>
+        <div class="status" id="addrStatus"></div>
+        <div class="addr-result hidden" id="addrResult"></div>
+    </div>
+
     <div id="results" class="hidden">
         <div class="verdict" id="verdict"></div>
         <div class="card">
             <div class="tablewrap">
                 <table>
                     <thead><tr>
-                        <th>Key</th><th>Node uses</th><th>On-chain signatures</th><th>Spent coins</th><th>Status</th>
+                        <th>Address (tap to copy)</th><th>Node uses</th><th>On-chain signatures</th><th>Spent coins</th><th>Status</th>
                     </tr></thead>
                     <tbody id="rows"></tbody>
                 </table>
@@ -100,7 +124,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.0</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.1</div>
 </div>
 
 <script>
@@ -161,6 +185,41 @@ function parseBackend(res){
     return b || null;
 }
 
+// --- scan any single address ---
+function scanAddress(){
+    var a = document.getElementById("addrInput").value.trim();
+    var st = document.getElementById("addrStatus"), res = document.getElementById("addrResult");
+    st.className = "status"; res.className = "addr-result hidden";
+    if (!a){ st.textContent = "Paste an Mx… or 0x… address."; st.className = "status show error"; return; }
+    var btn = document.getElementById("scanAddrBtn");
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Scanning…';
+    MDS.net.GET(AUDIT_API + "?addrs=" + encodeURIComponent(a), function(r){
+        btn.disabled = false; btn.textContent = "Scan address";
+        var d = parseBackend(r);
+        var arr = d && d.addresses;
+        if (!arr || !arr.length){ st.textContent = "Could not reach the audit service. Try again."; st.className = "status show error"; return; }
+        var row = arr[0];
+        if (row.error){ st.textContent = row.error; st.className = "status show error"; return; }
+        renderAddrResult(row);
+    });
+}
+
+function renderAddrResult(row){
+    var res = document.getElementById("addrResult");
+    var sigs = Number(row.spend_blocks || 0), coins = Number(row.spent_coins || 0);
+    var detail = sigs === 0
+        ? "This address has never been spent from on-chain — 0 key uses."
+        : "Spent from in " + coins.toLocaleString() + " coin" + (coins===1?"":"s") + " across "
+          + sigs.toLocaleString() + " transaction" + (sigs===1?"":"s") + " (blocks " + row.firstblock + "–" + row.lastblock + ").";
+    res.innerHTML =
+        '<div class="amono2">' + (row.miniaddress || row.address) + '</div>'
+        + '<div style="margin-top:10px"><span class="big">' + sigs.toLocaleString() + '</span> on-chain key uses</div>'
+        + '<div class="dim" style="margin-top:6px">' + detail + '</div>'
+        + '<div class="dim" style="margin-top:6px">(distinct spend-blocks ≈ signatures; the ' + coins.toLocaleString()
+        + ' spent-coin count is an upper bound — one signature can spend several coins.)</div>';
+    res.className = "addr-result";
+}
+
 // normalize a backend/scanner row to {sigs, coins}
 function rowStats(u){
     if (!u) return { sigs:0, coins:0 };
@@ -178,12 +237,14 @@ function joinAndRender(localKeys, usageArr, archiveTip){
     var rows = [], anyRisk = false, recommended = 0;
     localKeys.forEach(function(k, i){
         var local = Number(k.uses);
-        var st = rowStats(byPk[String(k.publickey).toUpperCase()]);
+        var u = byPk[String(k.publickey).toUpperCase()];
+        var st = rowStats(u);
+        var addr = (u && (u.miniaddress || u.address)) || "(address unavailable)";
         // reuse risk: chain proves MORE signatures than the node's counter
         var risk = st.sigs > local;
         if (risk) anyRisk = true;
         recommended = Math.max(recommended, Math.max(st.sigs, local));
-        rows.push({ i:i+1, pk:String(k.publickey).toUpperCase(), local:local, sigs:st.sigs, coins:st.coins, risk:risk });
+        rows.push({ i:i+1, addr:addr, local:local, sigs:st.sigs, coins:st.coins, risk:risk });
     });
 
     renderVerdict(anyRisk, recommended);
@@ -223,14 +284,36 @@ function renderRows(rows){
     rows.forEach(function(r){
         var cls = r.risk ? "risk" : "ok", chip = r.risk ? "RE-USE" : "OK";
         var tr = document.createElement("tr");
-        tr.innerHTML =
-            '<td class="mono">#' + r.i + ' ' + r.pk.substring(0,10) + '…</td>'
-            + '<td>' + r.local.toLocaleString() + '</td>'
+        var addrCell = document.createElement("td");
+        addrCell.className = "addr";
+        addrCell.setAttribute("data-addr", r.addr);
+        addrCell.onclick = function(){ copyAddr(addrCell); };
+        addrCell.innerHTML = '<span class="kn">#' + r.i + '</span>'
+            + '<span class="amono">' + r.addr + '</span>'
+            + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
+        tr.appendChild(addrCell);
+        var rest = '<td>' + r.local.toLocaleString() + '</td>'
             + '<td>' + r.sigs.toLocaleString() + '</td>'
             + '<td>' + r.coins.toLocaleString() + '</td>'
             + '<td><span class="chip ' + cls + '">' + chip + '</span></td>';
+        var tmp = document.createElement("tbody"); tmp.innerHTML = "<tr>" + rest + "</tr>";
+        while (tmp.firstChild.firstChild) tr.appendChild(tmp.firstChild.firstChild);
         tb.appendChild(tr);
     });
+}
+
+function copyAddr(td){
+    var a = td.getAttribute("data-addr");
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(a);
+        else {
+            var t = document.createElement("textarea"); t.value = a; document.body.appendChild(t);
+            t.select(); document.execCommand("copy"); document.body.removeChild(t);
+        }
+    } catch(e){}
+    var hint = td.querySelector(".copyhint"), done = td.querySelector(".copied");
+    if (hint) hint.style.opacity = 0;
+    if (done){ done.style.opacity = 1; setTimeout(function(){ done.style.opacity = 0; if (hint) hint.style.opacity = ""; }, 1300); }
 }
 </script>
 </body>
