@@ -1,0 +1,21 @@
+# Java build artifacts
+*.class
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# Generated indexes / node-specific data
+scan_*.json
+key_usage.json
+keys.json
+nofilter.json
+allscan.json
+
+# Environment files
+*.env
+
+# macOS
+.DS_Store
