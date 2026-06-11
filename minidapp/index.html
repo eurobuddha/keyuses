@@ -190,8 +190,9 @@ function joinAndRender(localKeys, usageArr, archiveTip){
     renderRows(rows);
     var cov = document.getElementById("coverage");
     cov.textContent = archiveTip
-        ? "On-chain signatures counted from the archive up to block " + archiveTip
-          + " (~24h behind the tip; the last day isn't included yet)."
+        ? "On-chain signatures counted from the archive (to block " + archiveTip + "). The archive trails the "
+          + "tip by ~24h, but re-use is still caught: it can only arise from a re-sync set below a key's "
+          + "historical usage, and that history is older than 24h. Your node's live counter covers the rest."
         : "On-chain signatures from your own archive scan.";
     document.getElementById("results").classList.remove("hidden");
 }
