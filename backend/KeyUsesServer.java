@@ -39,6 +39,7 @@ public class KeyUsesServer {
     static Map<String, long[]> INDEX = new HashMap<>(300000);
     static long ARCHIVE_TIP = -1;
     static final int MAX_KEYS = 256;
+    static final java.util.regex.Pattern PUBKEY = java.util.regex.Pattern.compile("^0x[0-9A-Fa-f]{64}$");
 
     public static void main(String[] args) throws Exception {
         Map<String, String> a = parseArgs(args);
@@ -55,20 +56,29 @@ public class KeyUsesServer {
     }
 
     static void loadIndex(String path) throws IOException {
-        long tip = -1;
+        long maxLast = -1, explicitTip = -1;
         try (java.io.BufferedReader br = Files.newBufferedReader(Paths.get(path), StandardCharsets.UTF_8)) {
             String line;
             while ((line = br.readLine()) != null) {
                 if (line.isEmpty()) continue;
+                if (line.charAt(0) == '#') {
+                    // "#TIP\t<block>" header = the real scanned tip
+                    if (line.startsWith("#TIP\t")) {
+                        try { explicitTip = Long.parseLong(line.substring(5).trim()); } catch (NumberFormatException ignore) {}
+                    }
+                    continue;
+                }
                 String[] p = line.split("\t");
                 if (p.length < 5) continue;
                 long[] v = new long[]{ Long.parseLong(p[1]), Long.parseLong(p[2]), Long.parseLong(p[3]), Long.parseLong(p[4]) };
                 INDEX.put(p[0].toUpperCase(), v);
-                if (v[3] > tip) tip = v[3];
+                if (v[3] > maxLast) maxLast = v[3];
             }
         }
-        ARCHIVE_TIP = tip;
-        System.err.println("loaded index: " + INDEX.size() + " addresses, max lastblock=" + tip);
+        // Prefer the explicit scanned tip; fall back to the highest spend block for older index files.
+        ARCHIVE_TIP = explicitTip >= 0 ? explicitTip : maxLast;
+        System.err.println("loaded index: " + INDEX.size() + " addresses, archive_tip=" + ARCHIVE_TIP
+                + (explicitTip >= 0 ? " (from #TIP)" : " (inferred from max spend block)"));
     }
 
     static void handle(HttpExchange ex) throws IOException {
@@ -106,13 +116,26 @@ public class KeyUsesServer {
         for (String pkraw : pks) {
             String pk = pkraw.trim();
             if (pk.isEmpty()) continue;
+            // Validate shape — a default-address script hashes any string, so without this a
+            // malformed key would derive a bogus address and silently return "0 uses" (reads as safe).
+            if (!PUBKEY.matcher(pk).matches()) {
+                JSONObject bad = new JSONObject();
+                bad.put("publickey", pk);
+                bad.put("error", "not a valid public key (expected 0x + 64 hex)");
+                out.add(bad);
+                continue;
+            }
             String address, miniaddress;
             try {
                 Address ad = new Address("RETURN SIGNEDBY(" + pk + ")");
                 address = ad.getAddressData().to0xString();
                 miniaddress = ad.getMinimaAddress();
             } catch (Exception e) {
-                continue; // skip malformed pubkey
+                JSONObject bad = new JSONObject();
+                bad.put("publickey", pk);
+                bad.put("error", "could not derive address");
+                out.add(bad);
+                continue;
             }
             long[] v = INDEX.get(address.toUpperCase());
             JSONObject j = new JSONObject();

@@ -124,7 +124,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.1</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.2</div>
 </div>
 
 <script>
@@ -212,11 +212,14 @@ function renderAddrResult(row){
         : "Spent from in " + coins.toLocaleString() + " coin" + (coins===1?"":"s") + " across "
           + sigs.toLocaleString() + " transaction" + (sigs===1?"":"s") + " (blocks " + row.firstblock + "–" + row.lastblock + ").";
     res.innerHTML =
-        '<div class="amono2">' + (row.miniaddress || row.address) + '</div>'
+        '<div class="amono2"></div>'
         + '<div style="margin-top:10px"><span class="big">' + sigs.toLocaleString() + '</span> on-chain key uses</div>'
-        + '<div class="dim" style="margin-top:6px">' + detail + '</div>'
+        + '<div class="dim" style="margin-top:6px"></div>'
         + '<div class="dim" style="margin-top:6px">(distinct spend-blocks ≈ signatures; the ' + coins.toLocaleString()
         + ' spent-coin count is an upper bound — one signature can spend several coins.)</div>';
+    // address + detail set via textContent (never innerHTML) to avoid injection from response data
+    res.querySelector(".amono2").textContent = (row.miniaddress || row.address || "");
+    res.querySelectorAll(".dim")[0].textContent = detail;
     res.className = "addr-result";
 }
 
@@ -250,11 +253,13 @@ function joinAndRender(localKeys, usageArr, archiveTip){
     renderVerdict(anyRisk, recommended);
     renderRows(rows);
     var cov = document.getElementById("coverage");
-    cov.textContent = archiveTip
+    cov.textContent = (archiveTip
         ? "On-chain signatures counted from the archive (to block " + archiveTip + "). The archive trails the "
           + "tip by ~24h, but re-use is still caught: it can only arise from a re-sync set below a key's "
-          + "historical usage, and that history is older than 24h. Your node's live counter covers the rest."
-        : "On-chain signatures from your own archive scan.";
+          + "historical usage, and that history is older than 24h. Your node's live counter covers the rest. "
+        : "On-chain signatures from your own archive scan. ")
+        + "Counts are per spend-block; a key signing two transactions in one block (rare) counts once, "
+        + "so treat a key sitting exactly at on-chain == node-uses as 'verify', not provably clear.";
     document.getElementById("results").classList.remove("hidden");
 }
 
@@ -288,9 +293,11 @@ function renderRows(rows){
         addrCell.className = "addr";
         addrCell.setAttribute("data-addr", r.addr);
         addrCell.onclick = function(){ copyAddr(addrCell); };
+        // static markup only; the address is set via textContent (never innerHTML) to avoid injection
         addrCell.innerHTML = '<span class="kn">#' + r.i + '</span>'
-            + '<span class="amono">' + r.addr + '</span>'
+            + '<span class="amono"></span>'
             + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
+        addrCell.querySelector(".amono").textContent = r.addr;
         tr.appendChild(addrCell);
         var rest = '<td>' + r.local.toLocaleString() + '</td>'
             + '<td>' + r.sigs.toLocaleString() + '</td>'

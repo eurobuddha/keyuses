@@ -27,6 +27,12 @@ import org.minima.utils.json.parser.JSONParser;
  * spend_blocks collapses a multi-coin transaction to one. Compare spend_blocks (not
  * spent_coins) against a node's per-signature `uses` counter.
  *
+ * KNOWN LIMITATION: the archive records blockspent, not the spending txid, so spend_blocks
+ * counts distinct BLOCKS as a proxy for transactions. If one key signs two SEPARATE
+ * transactions in the SAME block (rare), they collapse to one — a slight under-count. That
+ * is the false-negative direction for reuse detection, so treat a key sitting exactly at
+ * spend_blocks == uses as "verify", not "definitely safe".
+ *
  * Modes:
  *   --keys keysActionList.json : derive each key's default address (RETURN SIGNEDBY(pk)),
  *                                filter to those, emit a per-KEY audit (with reuserisk).
@@ -112,12 +118,16 @@ public class CoinScanner {
             if (next <= start) break;
             start = next;
         }
+        mysql.shutdown();
         System.err.println("DONE. blocks=" + blocks + " archiveTip=" + lastSeen + " spends=" + spends + " addrs=" + result.size());
         System.err.println("NOTE: coverage = block 1 .. " + lastSeen + " (archive). The last ~24h (cascade) is NOT in here.");
 
         // Fast TSV index output (no JSON), for the backend to load directly.
+        // First line is a "#TIP" header carrying the real scanned tip (so the backend reports
+        // the true coverage block, not just the highest block that happened to have a spend).
         if (tsv && targets == null) {
-            StringBuilder sb = new StringBuilder(result.size() * 96);
+            StringBuilder sb = new StringBuilder(result.size() * 96 + 32);
+            sb.append("#TIP\t").append(lastSeen).append('\n');
             for (Map.Entry<String, Stat> e : result.entrySet()) {
                 Stat s = e.getValue();
                 sb.append(e.getKey()).append('\t').append(s.spendBlocks).append('\t')
