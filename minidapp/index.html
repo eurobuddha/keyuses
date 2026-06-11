@@ -10,98 +10,49 @@
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg: #0a0a0f;
-            --card: rgba(255,255,255,0.03);
-            --border: rgba(255,255,255,0.07);
-            --text: #e8e6e3;
-            --text-dim: rgba(232,230,227,0.55);
-            --accent: #f7931a;
-            --ok: #4ade80;
-            --warn: #fbbf24;
-            --risk: #f87171;
+            --bg: #0a0a0f; --card: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.07);
+            --text: #e8e6e3; --text-dim: rgba(232,230,227,0.55); --accent: #f7931a;
+            --ok: #4ade80; --warn: #fbbf24; --risk: #f87171;
         }
-        body {
-            font-family: 'Manrope', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            padding: 24px;
-            display: flex;
-            justify-content: center;
-        }
-        .container { max-width: 760px; width: 100%; }
-        .badge {
-            display: inline-flex; align-items: center; gap: 8px;
-            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
-            text-transform: uppercase; color: var(--accent);
-            padding: 4px 12px; background: rgba(247,147,26,0.08);
-            border-radius: 4px; margin-bottom: 16px;
-        }
-        .badge::before {
-            content: ''; width: 6px; height: 6px; border-radius: 50%;
-            background: var(--accent); box-shadow: 0 0 10px var(--accent);
-        }
+        body { font-family: 'Manrope', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; display: flex; justify-content: center; }
+        .container { max-width: 780px; width: 100%; }
+        .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); padding: 4px 12px; background: rgba(247,147,26,0.08); border-radius: 4px; margin-bottom: 16px; }
+        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
         h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
         .subtitle { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 22px; font-weight: 300; line-height: 1.6; }
-        .card {
-            background: var(--card); border: 1px solid var(--border);
-            border-radius: 16px; padding: 26px; margin-bottom: 18px;
-        }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-bottom: 18px; }
         .modes { display: flex; gap: 8px; margin-bottom: 18px; }
-        .mode-btn {
-            flex: 1; padding: 10px; border-radius: 10px; cursor: pointer;
-            background: transparent; border: 1px solid var(--border);
-            color: var(--text-dim); font-family: inherit; font-size: 0.8rem; font-weight: 600;
-            transition: all 0.2s;
-        }
+        .mode-btn { flex: 1; padding: 10px; border-radius: 10px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; }
         .mode-btn.active { border-color: rgba(247,147,26,0.4); color: var(--text); background: rgba(247,147,26,0.06); }
-        .btn {
-            width: 100%; padding: 14px; border: none; border-radius: 10px;
-            background: linear-gradient(135deg, var(--accent), #ff5e3a);
-            color: #fff; font-family: inherit; font-size: 0.95rem; font-weight: 700;
-            cursor: pointer; transition: opacity 0.3s, transform 0.15s;
-        }
-        .btn:hover { opacity: 0.92; }
-        .btn:active { transform: scale(0.99); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        textarea {
-            width: 100%; min-height: 110px; padding: 12px; border-radius: 10px;
-            background: rgba(0,0,0,0.3); border: 1px solid var(--border);
-            color: var(--text); font-family: monospace; font-size: 0.75rem;
-            outline: none; resize: vertical; margin-bottom: 12px;
-        }
-        .note { font-size: 0.72rem; color: var(--text-dim); line-height: 1.6; margin-top: 12px; }
-        .note strong { color: var(--text); font-weight: 600; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #ff5e3a); color: #fff; font-family: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: opacity 0.3s, transform 0.15s; }
+        .btn:hover { opacity: 0.92; } .btn:active { transform: scale(0.99); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        textarea { width: 100%; min-height: 110px; padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text); font-family: monospace; font-size: 0.75rem; outline: none; resize: vertical; margin-bottom: 12px; }
+        .note { font-size: 0.72rem; color: var(--text-dim); line-height: 1.6; margin-top: 12px; } .note strong { color: var(--text); font-weight: 600; }
         .hidden { display: none; }
-
         .verdict { border-radius: 14px; padding: 22px; margin-bottom: 18px; text-align: center; border: 1px solid; }
         .verdict h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
-        .verdict p { font-size: 0.85rem; line-height: 1.6; }
-        .verdict.ok   { background: rgba(74,222,128,0.07);  border-color: rgba(74,222,128,0.3);  color: var(--ok); }
-        .verdict.warn { background: rgba(251,191,36,0.07);  border-color: rgba(251,191,36,0.3);  color: var(--warn); }
+        .verdict.ok { background: rgba(74,222,128,0.07); border-color: rgba(74,222,128,0.3); color: var(--ok); }
+        .verdict.warn { background: rgba(251,191,36,0.07); border-color: rgba(251,191,36,0.3); color: var(--warn); }
         .verdict.risk { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.35); color: var(--risk); }
-        .verdict p { color: var(--text); }
-
+        .verdict p { color: var(--text); font-size: 0.85rem; line-height: 1.6; }
         .reco { background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 14px; }
         .reco label { display:block; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
         .reco code { display:block; font-family: monospace; font-size: 0.78rem; color: var(--accent); word-break: break-all; line-height: 1.5; }
-
         table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
         th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
         th:first-child, td:first-child { text-align: left; }
         th { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
         td.mono { font-family: monospace; color: var(--text-dim); }
         .chip { display:inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.66rem; font-weight: 700; }
-        .chip.ok   { background: rgba(74,222,128,0.12);  color: var(--ok); }
-        .chip.warn { background: rgba(251,191,36,0.12);  color: var(--warn); }
+        .chip.ok { background: rgba(74,222,128,0.12); color: var(--ok); }
         .chip.risk { background: rgba(248,113,113,0.14); color: var(--risk); }
         .tablewrap { overflow-x: auto; }
         .status { margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 0.8rem; display:none; }
-        .status.show { display:block; }
-        .status.error { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); color: var(--risk); }
+        .status.show { display:block; } .status.error { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); color: var(--risk); }
         .footer { text-align: center; margin-top: 18px; font-size: 0.65rem; color: rgba(255,255,255,0.2); letter-spacing: 0.05em; }
         .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation: s 0.7s linear infinite; vertical-align:-2px; margin-right:8px; }
         @keyframes s { to { transform: rotate(360deg); } }
+        .coverage { font-size: 0.7rem; color: var(--text-dim); margin-top: 10px; text-align:center; }
     </style>
 </head>
 <body>
@@ -109,10 +60,11 @@
     <div class="badge">Minima · Key Security Audit</div>
     <h1>KeyUses</h1>
     <p class="subtitle">
-        Minima signatures are <strong>stateful</strong>: each of your 64 keys can sign safely only by
-        moving to a fresh leaf each time. If a seed re-sync set <code>keyuses</code> too low, your node
-        can <strong>re-use a leaf it already spent on-chain</strong> — which is forgeable. This tool reads your
-        keys, checks how many times each was <em>really</em> used on an archive, and tells you if you're at risk.
+        Minima signatures are <strong>stateful</strong>: each of your 64 keys must move to a fresh
+        leaf every time it signs. If a seed re-sync set <code>keyuses</code> too low, your node can
+        <strong>re-use a leaf it already spent on-chain</strong> — which is forgeable. This tool checks,
+        for each key, how many times it has actually signed on-chain and compares that to your node's
+        own counter.
     </p>
 
     <div class="card" id="controls">
@@ -120,17 +72,15 @@
             <button class="mode-btn active" id="m-hosted" onclick="setMode('hosted')">eurobuddha archive</button>
             <button class="mode-btn" id="m-self" onclick="setMode('self')">My own archive</button>
         </div>
-
         <div id="self-panel" class="hidden">
-            <textarea id="scanJson" placeholder='Paste the KeyUseScanner JSON output (array of {publickey, usecount, maxleafindex, ...}) produced by running the scanner against your own archive node.'></textarea>
+            <textarea id="scanJson" placeholder='Paste the CoinScanner --keys JSON output (run against your own archive node).'></textarea>
         </div>
-
         <button class="btn" id="runBtn" onclick="runAudit()">Run Audit</button>
-
         <div class="note" id="privacy">
             <strong>Privacy:</strong> in <em>eurobuddha archive</em> mode your 64 <em>public</em> keys are sent to
-            eurobuddha.com to be looked up against the archive. Public keys cannot move funds, but they do reveal
-            your addresses to that server. For full privacy, run your own archive and use <em>My own archive</em> mode.
+            eurobuddha.com, which derives your addresses and returns how often each was spent. Public keys can't
+            move funds, but they do reveal your addresses to that server. For full privacy run your own archive
+            and use <em>My own archive</em> mode.
         </div>
         <div class="status" id="statusBox"></div>
     </div>
@@ -140,14 +90,13 @@
         <div class="card">
             <div class="tablewrap">
                 <table>
-                    <thead>
-                        <tr>
-                            <th>Key</th><th>Local uses</th><th>On-chain max</th><th>Sigs</th><th>% of cap</th><th>Status</th>
-                        </tr>
-                    </thead>
+                    <thead><tr>
+                        <th>Key</th><th>Node uses</th><th>On-chain signatures</th><th>Spent coins</th><th>Status</th>
+                    </tr></thead>
                     <tbody id="rows"></tbody>
                 </table>
             </div>
+            <div class="coverage" id="coverage"></div>
         </div>
     </div>
 
@@ -155,16 +104,11 @@
 </div>
 
 <script>
-var AUDIT_API = "https://eurobuddha.com/keyaudit/";
-var MAXUSES = 262144;
-var EXHAUST_WARN_PCT = 80;     // warn if a key has used >80% of its leaves
-var KEYUSES_MARGIN = 256;      // safety margin added to recommended keyuses
-
+var AUDIT_API = "https://eurobuddha.com/keyaudit";
+var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
 var MODE = "hosted";
 
-MDS.init(function(msg){
-    if (msg.event === "inited") { MDS.log("KeyUses v0.1.0 ready"); }
-});
+MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.0 ready"); });
 
 function setMode(m){
     MODE = m;
@@ -173,149 +117,116 @@ function setMode(m){
     document.getElementById("self-panel").classList.toggle("hidden", m!=="self");
     document.getElementById("privacy").classList.toggle("hidden", m!=="hosted");
 }
-
-function showError(msg){
-    var b = document.getElementById("statusBox");
-    b.textContent = msg; b.className = "status show error";
-}
-function clearError(){ document.getElementById("statusBox").className = "status"; }
-
-function setBusy(busy){
-    var btn = document.getElementById("runBtn");
-    btn.disabled = busy;
-    btn.innerHTML = busy ? '<span class="spin"></span>Auditing…' : 'Run Audit';
-}
+function showError(m){ var b=document.getElementById("statusBox"); b.textContent=m; b.className="status show error"; }
+function clearError(){ document.getElementById("statusBox").className="status"; }
+function setBusy(b){ var x=document.getElementById("runBtn"); x.disabled=b; x.innerHTML = b ? '<span class="spin"></span>Auditing…' : 'Run Audit'; }
 
 function runAudit(){
-    clearError();
-    setBusy(true);
+    clearError(); setBusy(true);
     MDS.cmd("keys action:list", function(res){
         if (!res || !res.status || !res.response || !res.response.keys){
             setBusy(false);
-            showError("Could not read your keys (keys action:list failed). This dapp must run installed on your own node.");
+            showError("Could not read your keys (keys action:list). This dapp must run installed on your own node.");
             return;
         }
-        var localKeys = res.response.keys; // [{publickey, uses, maxuses, ...}]
-        if (MODE === "self"){
-            handleSelf(localKeys);
-        } else {
-            handleHosted(localKeys);
-        }
+        var localKeys = res.response.keys; // [{publickey, uses}]
+        if (MODE === "self") handleSelf(localKeys); else handleHosted(localKeys);
     });
 }
 
 function handleHosted(localKeys){
     var pubs = localKeys.map(function(k){ return k.publickey; }).join(",");
-    var url = AUDIT_API + "?keys=" + encodeURIComponent(pubs);
-    MDS.net.GET(url, function(res){
+    MDS.net.GET(AUDIT_API + "?keys=" + encodeURIComponent(pubs), function(res){
         setBusy(false);
         var data = parseBackend(res);
         if (!data){ showError("Could not reach the audit service. Try again, or use 'My own archive' mode."); return; }
-        joinAndRender(localKeys, data);
+        joinAndRender(localKeys, data.keys || data, data.archive_tip);
     });
 }
 
 function handleSelf(localKeys){
     setBusy(false);
     var raw = document.getElementById("scanJson").value.trim();
-    if (!raw){ showError("Paste your scanner JSON output first, or switch to eurobuddha archive mode."); return; }
-    var arr;
-    try { arr = JSON.parse(raw); } catch(e){ showError("That doesn't parse as JSON: " + e.message); return; }
+    if (!raw){ showError("Paste your CoinScanner JSON output, or switch to eurobuddha archive mode."); return; }
+    var arr; try { arr = JSON.parse(raw); } catch(e){ showError("That doesn't parse as JSON: " + e.message); return; }
     if (arr && arr.keys) arr = arr.keys;
-    if (!Array.isArray(arr)){ showError("Expected a JSON array of key-usage objects."); return; }
-    joinAndRender(localKeys, arr);
+    if (!Array.isArray(arr)){ showError("Expected a JSON array of key results."); return; }
+    joinAndRender(localKeys, arr, null);
 }
 
 function parseBackend(res){
     if (!res) return null;
-    var body = res.response;
-    if (typeof body === "string"){ try { body = JSON.parse(body); } catch(e){ return null; } }
-    if (!body) return null;
-    if (Array.isArray(body)) return body;
-    if (body.keys && Array.isArray(body.keys)) return body.keys;
-    return null;
+    var b = res.response;
+    if (typeof b === "string"){ try { b = JSON.parse(b); } catch(e){ return null; } }
+    return b || null;
 }
 
-function joinAndRender(localKeys, usageArr){
-    // index usage by uppercased publickey
+// normalize a backend/scanner row to {sigs, coins}
+function rowStats(u){
+    if (!u) return { sigs:0, coins:0 };
+    var sigs  = (u.spend_blocks !== undefined) ? u.spend_blocks
+              : (u.onchain_signatures !== undefined) ? u.onchain_signatures : 0;
+    var coins = (u.spent_coins !== undefined) ? u.spent_coins
+              : (u.spent_coins_upperbound !== undefined) ? u.spent_coins_upperbound : 0;
+    return { sigs: Number(sigs), coins: Number(coins) };
+}
+
+function joinAndRender(localKeys, usageArr, archiveTip){
     var byPk = {};
-    usageArr.forEach(function(u){
-        if (u && u.publickey) byPk[String(u.publickey).toUpperCase()] = u;
-    });
+    usageArr.forEach(function(u){ if (u && u.publickey) byPk[String(u.publickey).toUpperCase()] = u; });
 
-    var rows = [];
-    var anyRisk = false, anyWarn = false, recommended = 0;
-
+    var rows = [], anyRisk = false, recommended = 0;
     localKeys.forEach(function(k, i){
-        var pk = String(k.publickey).toUpperCase();
         var local = Number(k.uses);
-        var u = byPk[pk];
-        var maxIdx = (u && u.maxleafindex !== undefined) ? Number(u.maxleafindex) : -1;
-        var count  = (u && u.usecount !== undefined) ? Number(u.usecount) : 0;
-        var highWater = maxIdx + 1;                 // true on-chain uses (max index + 1)
-        recommended = Math.max(recommended, highWater);
-
-        // risk: node will next issue leaf == local; danger if an on-chain use is at/after it
-        var risk = (maxIdx >= 0) && (maxIdx >= local);
-        var pct = Math.round((highWater / MAXUSES) * 1000) / 10;
-        var exhaust = pct >= EXHAUST_WARN_PCT;
+        var st = rowStats(byPk[String(k.publickey).toUpperCase()]);
+        // reuse risk: chain proves MORE signatures than the node's counter
+        var risk = st.sigs > local;
         if (risk) anyRisk = true;
-        if (exhaust) anyWarn = true;
-
-        rows.push({ i:i+1, pk:pk, local:local, maxIdx:maxIdx, highWater:highWater,
-                    count:count, pct:pct, risk:risk, exhaust:exhaust });
+        recommended = Math.max(recommended, Math.max(st.sigs, local));
+        rows.push({ i:i+1, pk:String(k.publickey).toUpperCase(), local:local, sigs:st.sigs, coins:st.coins, risk:risk });
     });
 
-    renderVerdict(anyRisk, anyWarn, recommended);
+    renderVerdict(anyRisk, recommended);
     renderRows(rows);
+    var cov = document.getElementById("coverage");
+    cov.textContent = archiveTip
+        ? "On-chain signatures counted from the archive up to block " + archiveTip
+          + " (~24h behind the tip; the last day isn't included yet)."
+        : "On-chain signatures from your own archive scan.";
     document.getElementById("results").classList.remove("hidden");
 }
 
-function renderVerdict(anyRisk, anyWarn, recommended){
+function renderVerdict(anyRisk, recommended){
     var el = document.getElementById("verdict");
     var reco = recommended + KEYUSES_MARGIN;
     var recoBox = '<div class="reco"><label>Recommended keyuses for your next seed re-sync</label>'
         + '<code>archive action:import file:&lt;your-backup&gt; phrase:"&lt;your 24 words&gt;" keyuses:' + reco + '</code></div>';
-
     if (anyRisk){
         el.className = "verdict risk";
-        el.innerHTML = '<h2>⚠ At risk — keys can re-use a spent leaf</h2>'
-            + '<p>One or more keys have been used on-chain at or beyond your node\'s current counter. '
-            + 'Your node may re-issue a one-time signature it already spent, which is forgeable. '
-            + 'Re-sync from your seed with a higher <code>keyuses</code> before signing anything else.</p>'
-            + recoBox;
-    } else if (anyWarn){
-        el.className = "verdict warn";
-        el.innerHTML = '<h2>Approaching key exhaustion</h2>'
-            + '<p>No re-use detected, but a key has consumed a large share of its ' + MAXUSES.toLocaleString()
-            + ' lifetime signatures. Plan to migrate to a fresh seed before any key is exhausted.</p>'
-            + recoBox;
+        el.innerHTML = '<h2>⚠ At risk — a key has signed more than your node thinks</h2>'
+            + '<p>On at least one key, the chain shows more signatures than your node\'s counter. Your node was '
+            + 'likely re-synced with <code>keyuses</code> set too low and may re-issue a one-time signature it '
+            + 'already spent — which is forgeable. Re-sync from your seed with a higher <code>keyuses</code> '
+            + 'before signing anything else.</p>' + recoBox;
     } else {
         el.className = "verdict ok";
-        el.innerHTML = '<h2>✓ No re-use risk detected</h2>'
-            + '<p>For every key, the highest leaf revealed on-chain is below your node\'s current counter, '
-            + 'so your next signatures will use fresh leaves. (This is based on signatures that reached the '
-            + 'chain — keep the recommended value in mind for any future re-sync.)</p>'
+        el.innerHTML = '<h2>✓ No re-use detected</h2>'
+            + '<p>For every key, your node\'s counter is at or ahead of what the chain shows it has signed — '
+            + 'so your next signatures use fresh leaves. Keep the recommended value for any future re-sync.</p>'
             + recoBox;
     }
 }
 
 function renderRows(rows){
-    var tb = document.getElementById("rows");
-    tb.innerHTML = "";
+    var tb = document.getElementById("rows"); tb.innerHTML = "";
     rows.forEach(function(r){
-        var chip, cls;
-        if (r.risk){ chip = "RE-USE"; cls = "risk"; }
-        else if (r.exhaust){ chip = "HIGH"; cls = "warn"; }
-        else { chip = "OK"; cls = "ok"; }
-        var onchain = r.maxIdx < 0 ? "—" : r.highWater.toLocaleString();
+        var cls = r.risk ? "risk" : "ok", chip = r.risk ? "RE-USE" : "OK";
         var tr = document.createElement("tr");
         tr.innerHTML =
             '<td class="mono">#' + r.i + ' ' + r.pk.substring(0,10) + '…</td>'
             + '<td>' + r.local.toLocaleString() + '</td>'
-            + '<td>' + onchain + '</td>'
-            + '<td>' + r.count.toLocaleString() + '</td>'
-            + '<td>' + r.pct + '%</td>'
+            + '<td>' + r.sigs.toLocaleString() + '</td>'
+            + '<td>' + r.coins.toLocaleString() + '</td>'
             + '<td><span class="chip ' + cls + '">' + chip + '</span></td>';
         tb.appendChild(tr);
     });

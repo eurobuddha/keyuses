@@ -74,6 +74,24 @@ java -cp /path/to/minima.jar:scanner CoinScanner \
 The fat jar bundles the MySQL driver but not its JDBC service file, so the scanners register
 `com.mysql.cj.jdbc.Driver` explicitly.
 
+## Backend (`backend/KeyUsesServer.java`)
+
+A small JDK-`HttpServer` service. Loads the spend index (TSV) into memory, and for each posted
+public key derives its default address and returns spend stats:
+
+```
+GET /keyaudit?keys=0xPK1,0xPK2,...
+  -> { status, archive_tip, keys:[ {publickey,address,spend_blocks,spent_coins,firstblock,lastblock} ] }
+GET /keyaudit/health
+```
+
+Deployed on eurobuddha behind `pm2` (`keyuses-backend`, localhost:3010) and an Apache reverse
+proxy at `https://eurobuddha.com/keyaudit`. Serves **only public spend data** — no wallet data,
+no DB writes. Coverage is the archive (`archive_tip`); the last ~24h (cascade) is disclosed in the
+dapp and topped up separately.
+
+Build: `javac --release 11 -cp /path/to/minima.jar backend/KeyUsesServer.java`.
+
 ## Notes / gotchas discovered
 
 - `MySQLConnect.loadFirstBlock()` / `loadLastBlock()` are **mislabeled** in Minima (their SQL is
