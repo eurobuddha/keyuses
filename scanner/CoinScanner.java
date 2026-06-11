@@ -54,6 +54,7 @@ public class CoinScanner {
         Map<String, String> a = parseArgs(args);
         String host = a.get("host"), db = a.getOrDefault("db", "archivedb");
         String user = a.get("user"), pass = a.get("pass"), keysFile = a.get("keys");
+        boolean tsv = a.containsKey("tsv"); // index mode: emit TSV instead of JSON
         long fromBlock = Long.parseLong(a.getOrDefault("fromblock", "0"));
         if (host == null || user == null || pass == null) {
             System.err.println("usage: CoinScanner --host H:3306 --db archivedb --user U --pass P [--keys keys.json] [--fromblock N]");
@@ -113,6 +114,20 @@ public class CoinScanner {
         }
         System.err.println("DONE. blocks=" + blocks + " archiveTip=" + lastSeen + " spends=" + spends + " addrs=" + result.size());
         System.err.println("NOTE: coverage = block 1 .. " + lastSeen + " (archive). The last ~24h (cascade) is NOT in here.");
+
+        // Fast TSV index output (no JSON), for the backend to load directly.
+        if (tsv && targets == null) {
+            StringBuilder sb = new StringBuilder(result.size() * 96);
+            for (Map.Entry<String, Stat> e : result.entrySet()) {
+                Stat s = e.getValue();
+                sb.append(e.getKey()).append('\t').append(s.spendBlocks).append('\t')
+                  .append(s.spentCoins).append('\t')
+                  .append(s.spentCoins == 0 ? -1 : s.firstBlock).append('\t')
+                  .append(s.lastBlock).append('\n');
+            }
+            System.out.print(sb);
+            return;
+        }
 
         JSONArray out = new JSONArray();
         boolean anyRisk = false;
