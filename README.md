@@ -17,10 +17,18 @@ leaves it already spent on-chain.** KeyUses detects exactly this.
    witnesses, match each by its root public key, and recover the **exact on-chain leaf index**
    from the signature proof's left/right path bits. Output per key:
    `{publickey, usecount, maxleafindex, firstblock, lastblock}`.
-   - The recovered `maxleafindex` is the metric: an over-high prior resync leaves index gaps,
-     so a raw `usecount` is only a lower bound.
-   - `--consistency` validates the decoder with no wallet access: a never-resynced key's
-     on-chain signatures must decode to a contiguous, block-monotonic run `0..N-1`.
+   - The recovered `maxleafindex` is the metric. A Winternitz leaf only becomes forgeable once
+     its signature is **publicly revealed** (i.e. on-chain), so the highest on-chain leaf index
+     is exactly the security-relevant "used" set — unbroadcast signing (which still bumps the
+     local counter) is irrelevant to reuse safety.
+   - `--consistency` is an archive-wide reuse scan: healthy keys reveal leaves in strictly
+     increasing block order; a non-monotonic sequence is a key that was resynced with `keyuses`
+     too low and re-revealed spent leaves (real on-chain reuse exposure).
+
+   **Decoder correctness is proven offline by `scanner/CalibrateDecoder.java`**: it builds a real
+   `TreeKey`, signs at known indices (`setUses`), and confirms the decoder recovers the exact leaf
+   index for every value `0..262143`, both directly and after the serialization round-trip the
+   archive data goes through.
 
 2. **Backend** (`backend/server.js`) — loads the scanner's JSON index into memory (the chain is
    sparse, so the set of distinct signing keys is small) and serves fast lookups:

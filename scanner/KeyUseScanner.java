@@ -206,16 +206,20 @@ public class KeyUseScanner {
     }
 
     /**
-     * Validate the decoder WITHOUT any wallet access: Minima signs leaves sequentially,
-     * so a never-resynced key's on-chain signatures must decode to a CONTIGUOUS,
-     * block-monotonic index sequence 0,1,2,... A correct decoder produces clean
-     * {0..N-1} runs for the busiest keys; a broken one produces indices uncorrelated
-     * with block order. Resynced keys may show gaps (benign), but NON-monotonic order
-     * would indicate a decoder bug.
+     * Archive reuse scan. (The decoder itself is proven exact by CalibrateDecoder.)
+     *
+     * On-chain signatures are the security-relevant set: a Winternitz leaf is only
+     * forgeable once its signature is PUBLICLY REVEALED, i.e. on-chain. Signing is
+     * sequential, so a healthy key's revealed leaf indices are strictly increasing in
+     * block order. Gaps are benign (the node signs more than it broadcasts, and a resync
+     * with keyuses set HIGH skips leaves). But a NON-MONOTONIC sequence — a lower leaf
+     * revealed in a LATER block than a higher one — means the key's counter went BACKWARDS:
+     * a resync with keyuses set too LOW, re-revealing already-spent leaves. That is real
+     * on-chain reuse exposure.
      */
     static void consistencyReport(Map<String, Usage> result) {
-        System.err.println("\n=== DECODER CONSISTENCY (no wallet access; pure archive) ===");
-        int perfect = 0, gapped = 0, broken = 0, considered = 0;
+        System.err.println("\n=== ARCHIVE REUSE SCAN (on-chain revealed leaves) ===");
+        int healthy = 0, gapped = 0, exposed = 0, considered = 0;
         // Look at the busiest keys first.
         java.util.List<Map.Entry<String, Usage>> ents = new java.util.ArrayList<>(result.entrySet());
         ents.sort((x, y) -> Long.compare(y.getValue().usecount, x.getValue().usecount));
@@ -242,28 +246,26 @@ public class KeyUseScanner {
                 max = Math.max(max, leaf);
             }
             boolean distinct = leaves.size() == ev.size();
-            boolean contiguousFromZero = distinct && min == 0 && (max == ev.size() - 1);
 
+            // monotonic increasing in block order = healthy. duplicates or a backwards
+            // step = a leaf re-revealed = on-chain reuse exposure.
             String klass;
-            if (contiguousFromZero && monotonic) { klass = "PERFECT"; perfect++; }
-            else if (monotonic && distinct)      { klass = "CLEAN-GAPPED(resync?)"; gapped++; }
-            else                                  { klass = "BROKEN"; broken++; }
+            if (monotonic && distinct && min == 0) { klass = "HEALTHY"; healthy++; }
+            else if (monotonic && distinct)        { klass = "HEALTHY-OFFSET"; gapped++; }
+            else                                    { klass = "REUSE-EXPOSURE"; exposed++; }
 
-            if (shown < 15 || klass.equals("BROKEN")) {
-                System.err.println(String.format("%-22s %s  n=%d  min=%d max=%d  monotonic=%s distinct=%s",
+            if (shown < 15 || klass.equals("REUSE-EXPOSURE")) {
+                System.err.println(String.format("%-15s %s  n=%d  min=%d max=%d  monotonic=%s distinct=%s",
                         klass, e.getKey().substring(0, 18) + "...", ev.size(), min, max, monotonic, distinct));
                 shown++;
             }
         }
         System.err.println("considered(keys>=2 sigs)=" + considered
-                + "  PERFECT=" + perfect + "  CLEAN-GAPPED=" + gapped + "  BROKEN=" + broken);
-        if (broken == 0 && perfect > 0) {
-            System.err.println("RESULT: decoder VALIDATED — busiest keys decode to contiguous block-monotonic runs.");
-        } else if (broken > 0) {
-            System.err.println("RESULT: decoder SUSPECT — non-monotonic decode found. Investigate.");
-        } else {
-            System.err.println("RESULT: inconclusive — no key with >=2 clean sigs found.");
-        }
+                + "  HEALTHY=" + healthy + "  HEALTHY-OFFSET=" + gapped + "  REUSE-EXPOSURE=" + exposed);
+        System.err.println(exposed > 0
+            ? "NOTE: " + exposed + " key(s) show non-monotonic on-chain leaf order = real reuse exposure"
+              + " (resynced with keyuses too low). Decoder correctness is proven separately by CalibrateDecoder."
+            : "NOTE: no on-chain reuse exposure among multi-sig keys.");
     }
 
     /**

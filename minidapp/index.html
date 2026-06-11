@@ -293,8 +293,9 @@ function renderVerdict(anyRisk, anyWarn, recommended){
     } else {
         el.className = "verdict ok";
         el.innerHTML = '<h2>✓ No re-use risk detected</h2>'
-            + '<p>Every key\'s on-chain usage is below your node\'s current counter, so your next signatures '
-            + 'will use fresh leaves. Keep this value in mind for any future re-sync.</p>'
+            + '<p>For every key, the highest leaf revealed on-chain is below your node\'s current counter, '
+            + 'so your next signatures will use fresh leaves. (This is based on signatures that reached the '
+            + 'chain — keep the recommended value in mind for any future re-sync.)</p>'
             + recoBox;
     }
 }
