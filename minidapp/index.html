@@ -124,7 +124,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.2</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.3</div>
 </div>
 
 <script>
@@ -270,11 +270,25 @@ function renderVerdict(anyRisk, recommended){
         + '<code>archive action:import file:&lt;your-backup&gt; phrase:"&lt;your 24 words&gt;" keyuses:' + reco + '</code></div>';
     if (anyRisk){
         el.className = "verdict risk";
-        el.innerHTML = '<h2>⚠ At risk — a key has signed more than your node thinks</h2>'
-            + '<p>On at least one key, the chain shows more signatures than your node\'s counter. Your node was '
-            + 'likely re-synced with <code>keyuses</code> set too low and may re-issue a one-time signature it '
-            + 'already spent — which is forgeable. Re-sync from your seed with a higher <code>keyuses</code> '
-            + 'before signing anything else.</p>' + recoBox;
+        el.innerHTML = '<h2>⚠ Re-use detected — this node\'s key is at risk</h2>'
+            + '<p>On at least one key, the chain shows <strong>more signatures than your node\'s counter</strong>. '
+            + 'That means your node has re-issued (or is about to re-issue) a one-time leaf it already spent. '
+            + 'A re-used Minima signature is <strong>publicly forgeable</strong> — if you have signed anything '
+            + 'since the counter dropped, treat the key as <strong>compromised</strong> and move the funds now.</p>'
+            + '<div class="reco" style="text-align:left">'
+            + '<label>How this happens — check your operations</label>'
+            + '<ul style="margin:0 0 0 18px; font-size:0.8rem; line-height:1.7; color:var(--text)">'
+            + '<li>More than one node/signer running on the <strong>same seed</strong> (each keeps its own counter → both issue the same leaves).</li>'
+            + '<li>A restore / re-sync that set <code>keyuses</code> <strong>below</strong> the key\'s true prior usage.</li>'
+            + '<li>A wallet-state snapshot/<strong>rollback</strong> to before signatures that were already broadcast.</li>'
+            + '</ul></div>'
+            + '<div class="reco" style="text-align:left">'
+            + '<label>Do this now</label>'
+            + '<ul style="margin:0 0 0 18px; font-size:0.8rem; line-height:1.7; color:var(--text)">'
+            + '<li><strong>Migrate all funds to a wallet from a fresh seed</strong> (safest — the existing key may already be forgeable).</li>'
+            + '<li>Never run two signers on one seed; never re-sync below true usage; use one authoritative counter.</li>'
+            + '</ul></div>'
+            + recoBox;
     } else {
         el.className = "verdict ok";
         el.innerHTML = '<h2>✓ No re-use detected</h2>'

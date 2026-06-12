@@ -19,3 +19,6 @@ allscan.json
 
 # macOS
 .DS_Store
+
+# Private security disclosure docs — never publish
+disclosure/
