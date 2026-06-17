@@ -22,3 +22,8 @@ allscan.json
 
 # Private security disclosure docs — never publish
 disclosure/
+
+# Reuse dataset (server-side only — never publish the address list)
+multi_sig_database_with_balance_minima.txt
+reuse.csv
+keyaudit.db

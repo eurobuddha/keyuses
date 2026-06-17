@@ -102,9 +102,9 @@
     </div>
 
     <div class="card">
-        <span class="section-label">Scan any address</span>
-        <input type="text" id="addrInput" placeholder="Paste any Mx… or 0x… address" />
-        <button class="btn btn-sec" id="scanAddrBtn" onclick="scanAddress()">Scan address</button>
+        <span class="section-label">Check any address for re-use</span>
+        <input type="text" id="addrInput" placeholder="Paste any Mx… or 0x… address (need not be one of your node's keys)" />
+        <button class="btn btn-sec" id="scanAddrBtn" onclick="scanAddress()">Check address</button>
         <div class="status" id="addrStatus"></div>
         <div class="addr-result hidden" id="addrResult"></div>
     </div>
@@ -124,11 +124,33 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.3</div>
+    <div class="card">
+        <span class="section-label">What is key re-use, and why does it matter?</span>
+        <div class="dim" style="font-size:0.82rem; line-height:1.7">
+            <p>Minima keys are <strong>stateful</strong>. Each key is a tree of 262,144 <em>one-time</em>
+            signatures (leaves). Signing safely means using a <strong>fresh leaf every time</strong> — your node
+            tracks this with a counter.</p>
+            <p style="margin-top:8px"><strong>Re-using a leaf</strong> — signing two different transactions with the
+            same one-time signature — is catastrophic: it makes the key <strong>publicly forgeable</strong>, so
+            anyone can move the funds. It's irreversible; there is no patch, only migrating the funds.</p>
+            <p style="margin-top:8px">It almost always comes from <strong>human error</strong>, not a Minima bug:</p>
+            <ul style="margin:6px 0 0 18px; line-height:1.7">
+                <li>Running <strong>two nodes/signers on the same seed</strong> (each issues leaves 0,1,2… on its own).</li>
+                <li><strong>Re-syncing</strong> from your seed with <code>keyuses</code> set <strong>below</strong> your true usage.</li>
+                <li><strong>Rolling back</strong> wallet state to before signatures you already broadcast.</li>
+            </ul>
+            <p style="margin-top:8px"><strong>The fix:</strong> one node/counter per seed; on a re-sync set
+            <code>keyuses</code> safely high; and if a key has already re-used, <strong>migrate all funds to a
+            brand-new seed</strong> and retire the old key.</p>
+        </div>
+    </div>
+
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.4</div>
 </div>
 
 <script>
 var AUDIT_API = "https://eurobuddha.com/keyaudit";
+var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
 var MODE = "hosted";
 
@@ -161,10 +183,17 @@ function runAudit(){
 function handleHosted(localKeys){
     var pubs = localKeys.map(function(k){ return k.publickey; }).join(",");
     MDS.net.GET(AUDIT_API + "?keys=" + encodeURIComponent(pubs), function(res){
-        setBusy(false);
         var data = parseBackend(res);
-        if (!data){ showError("Could not reach the audit service. Try again, or use 'My own archive' mode."); return; }
-        joinAndRender(localKeys, data.keys || data, data.archive_tip);
+        if (!data){ setBusy(false); showError("Could not reach the audit service. Try again, or use 'My own archive' mode."); return; }
+        var keyRows = data.keys || data;
+        // also check our addresses against the known-reuse database (definitive)
+        var addrs = keyRows.filter(function(k){ return k.address; }).map(function(k){ return k.address; }).join(",");
+        MDS.net.GET(REUSE_API + "?addrs=" + encodeURIComponent(addrs), function(rres){
+            setBusy(false);
+            var rd = parseBackend(rres), reuseByAddr = {};
+            if (rd && rd.results) rd.results.forEach(function(r){ if (r.address) reuseByAddr[String(r.address).toUpperCase()] = r; });
+            joinAndRender(localKeys, keyRows, data.archive_tip, reuseByAddr);
+        });
     });
 }
 
@@ -192,34 +221,47 @@ function scanAddress(){
     st.className = "status"; res.className = "addr-result hidden";
     if (!a){ st.textContent = "Paste an Mx… or 0x… address."; st.className = "status show error"; return; }
     var btn = document.getElementById("scanAddrBtn");
-    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Scanning…';
-    MDS.net.GET(AUDIT_API + "?addrs=" + encodeURIComponent(a), function(r){
-        btn.disabled = false; btn.textContent = "Scan address";
-        var d = parseBackend(r);
-        var arr = d && d.addresses;
-        if (!arr || !arr.length){ st.textContent = "Could not reach the audit service. Try again."; st.className = "status show error"; return; }
-        var row = arr[0];
-        if (row.error){ st.textContent = row.error; st.className = "status show error"; return; }
-        renderAddrResult(row);
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Checking…';
+    // definitive reuse check first
+    MDS.net.GET(REUSE_API + "?addrs=" + encodeURIComponent(a), function(rr){
+        var rd = parseBackend(rr);
+        var rrow = rd && rd.results && rd.results[0];
+        if (rrow && rrow.error){ btn.disabled=false; btn.textContent="Check address"; st.textContent = rrow.error; st.className = "status show error"; return; }
+        // then the on-chain usage count
+        MDS.net.GET(AUDIT_API + "?addrs=" + encodeURIComponent(a), function(r){
+            btn.disabled = false; btn.textContent = "Check address";
+            var d = parseBackend(r);
+            var arr = d && d.addresses;
+            var row = (arr && arr.length) ? arr[0] : null;
+            if (!row && !rrow){ st.textContent = "Could not reach the audit service. Try again."; st.className = "status show error"; return; }
+            renderAddrResult(row || rrow, rrow);
+        });
     });
 }
 
-function renderAddrResult(row){
+function renderAddrResult(row, reuseRow){
     var res = document.getElementById("addrResult");
+    var reused = !!(reuseRow && reuseRow.reused);
+    var rcount = reuseRow ? Number(reuseRow.reuse_count || 0) : 0;
     var sigs = Number(row.spend_blocks || 0), coins = Number(row.spent_coins || 0);
-    var detail = sigs === 0
-        ? "This address has never been spent from on-chain — 0 key uses."
-        : "Spent from in " + coins.toLocaleString() + " coin" + (coins===1?"":"s") + " across "
-          + sigs.toLocaleString() + " transaction" + (sigs===1?"":"s") + " (blocks " + row.firstblock + "–" + row.lastblock + ").";
-    res.innerHTML =
-        '<div class="amono2"></div>'
-        + '<div style="margin-top:10px"><span class="big">' + sigs.toLocaleString() + '</span> on-chain key uses</div>'
-        + '<div class="dim" style="margin-top:6px"></div>'
-        + '<div class="dim" style="margin-top:6px">(distinct spend-blocks ≈ signatures; the ' + coins.toLocaleString()
-        + ' spent-coin count is an upper bound — one signature can spend several coins.)</div>';
-    // address + detail set via textContent (never innerHTML) to avoid injection from response data
+    var detail = (row.spend_blocks === undefined)
+        ? ""
+        : (sigs === 0
+            ? "Never spent from on-chain — 0 key uses."
+            : "Spent from in " + coins.toLocaleString() + " coin" + (coins===1?"":"s") + " across "
+              + sigs.toLocaleString() + " transaction" + (sigs===1?"":"s") + ".");
+    var head = reused
+        ? '<div class="big" style="color:var(--risk)">⛔ RE-USED</div>'
+          + '<div class="dim" style="margin-top:4px">This address has re-used a one-time signature ('
+          + rcount.toLocaleString() + ' uses of a single leaf). The key is <strong>publicly forgeable</strong> — '
+          + 'if it is yours, migrate the funds to a fresh seed now; if you were about to trust it, don\'t.</div>'
+        : '<div class="big" style="color:var(--ok)">✓ No known re-use</div>'
+          + '<div class="dim" style="margin-top:4px">Not in the on-chain re-use database. '
+          + (sigs ? "It has signed " + sigs.toLocaleString() + " time" + (sigs===1?"":"s") + " (each a fresh leaf, as expected)." : "")
+          + '</div>';
+    res.innerHTML = '<div class="amono2"></div>' + head
+        + (detail ? '<div class="dim" style="margin-top:8px">' + detail + '</div>' : '');
     res.querySelector(".amono2").textContent = (row.miniaddress || row.address || "");
-    res.querySelectorAll(".dim")[0].textContent = detail;
     res.className = "addr-result";
 }
 
@@ -233,24 +275,30 @@ function rowStats(u){
     return { sigs: Number(sigs), coins: Number(coins) };
 }
 
-function joinAndRender(localKeys, usageArr, archiveTip){
+function joinAndRender(localKeys, usageArr, archiveTip, reuseByAddr){
+    reuseByAddr = reuseByAddr || {};
     var byPk = {};
     usageArr.forEach(function(u){ if (u && u.publickey) byPk[String(u.publickey).toUpperCase()] = u; });
 
-    var rows = [], anyRisk = false, recommended = 0;
+    var rows = [], anyRisk = false, anyReuse = false, recommended = 0;
     localKeys.forEach(function(k, i){
         var local = Number(k.uses);
         var u = byPk[String(k.publickey).toUpperCase()];
         var st = rowStats(u);
         var addr = (u && (u.miniaddress || u.address)) || "(address unavailable)";
-        // reuse risk: chain proves MORE signatures than the node's counter
+        // DEFINITIVE: is this key's address in the known-reuse database?
+        var rinfo = u && u.address ? reuseByAddr[String(u.address).toUpperCase()] : null;
+        var confirmedReuse = !!(rinfo && rinfo.reused);
+        if (confirmedReuse) anyReuse = true;
+        // count-based risk signal: chain proves MORE signatures than the node's counter
         var risk = st.sigs > local;
         if (risk) anyRisk = true;
         recommended = Math.max(recommended, Math.max(st.sigs, local));
-        rows.push({ i:i+1, addr:addr, local:local, sigs:st.sigs, coins:st.coins, risk:risk });
+        rows.push({ i:i+1, addr:addr, local:local, sigs:st.sigs, coins:st.coins,
+                    risk:risk, reused:confirmedReuse, reuseCount:(rinfo?Number(rinfo.reuse_count):0) });
     });
 
-    renderVerdict(anyRisk, recommended);
+    renderVerdict(anyRisk, anyReuse, recommended);
     renderRows(rows);
     var cov = document.getElementById("coverage");
     cov.textContent = (archiveTip
@@ -263,12 +311,26 @@ function joinAndRender(localKeys, usageArr, archiveTip){
     document.getElementById("results").classList.remove("hidden");
 }
 
-function renderVerdict(anyRisk, recommended){
+function renderVerdict(anyRisk, anyReuse, recommended){
     var el = document.getElementById("verdict");
     var reco = recommended + KEYUSES_MARGIN;
     var recoBox = '<div class="reco"><label>Recommended keyuses for your next seed re-sync</label>'
         + '<code>archive action:import file:&lt;your-backup&gt; phrase:"&lt;your 24 words&gt;" keyuses:' + reco + '</code></div>';
-    if (anyRisk){
+    if (anyReuse){
+        el.className = "verdict risk";
+        el.innerHTML = '<h2>⛔ Confirmed key re-use — migrate your funds now</h2>'
+            + '<p>One or more of your keys is in the on-chain <strong>re-use database</strong>: the same one-time '
+            + 'signature has been used to sign more than one transaction. That is the <strong>definitive</strong>, '
+            + 'irreversible failure — the key is publicly forgeable. <strong>Move all funds from the affected '
+            + 'address(es) to a wallet generated from a brand-new seed immediately, and stop using the old key.</strong></p>'
+            + '<div class="reco" style="text-align:left">'
+            + '<label>Why this happened (almost always human error)</label>'
+            + '<ul style="margin:0 0 0 18px; font-size:0.8rem; line-height:1.7; color:var(--text)">'
+            + '<li>Two nodes/signers run on the <strong>same seed</strong> (each issues leaves 0,1,2… independently).</li>'
+            + '<li>A restore/re-sync set <code>keyuses</code> <strong>below</strong> the key\'s true prior usage.</li>'
+            + '<li>A wallet snapshot was <strong>rolled back</strong> past signatures already broadcast.</li>'
+            + '</ul></div>';
+    } else if (anyRisk){
         el.className = "verdict risk";
         el.innerHTML = '<h2>⚠ Re-use detected — this node\'s key is at risk</h2>'
             + '<p>On at least one key, the chain shows <strong>more signatures than your node\'s counter</strong>. '
@@ -301,7 +363,10 @@ function renderVerdict(anyRisk, recommended){
 function renderRows(rows){
     var tb = document.getElementById("rows"); tb.innerHTML = "";
     rows.forEach(function(r){
-        var cls = r.risk ? "risk" : "ok", chip = r.risk ? "RE-USE" : "OK";
+        var cls, chip;
+        if (r.reused) { cls = "risk"; chip = "RE-USED"; }
+        else if (r.risk) { cls = "risk"; chip = "AT RISK"; }
+        else { cls = "ok"; chip = "OK"; }
         var tr = document.createElement("tr");
         var addrCell = document.createElement("td");
         addrCell.className = "addr";

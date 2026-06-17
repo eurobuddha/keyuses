@@ -37,6 +37,10 @@ import org.minima.utils.json.JSONObject;
 public class KeyUsesServer {
 
     static Map<String, long[]> INDEX = new HashMap<>(300000);
+    // Known one-time-key REUSE: 0x-address (UPPER) -> { reuse_count, balance }. Public keys/facts only.
+    static volatile Map<String, long[]> REUSE = new HashMap<>();
+    static volatile String REUSE_FILE = null;
+    static volatile long REUSE_MTIME = 0;
     static long ARCHIVE_TIP = -1;
     static final int MAX_KEYS = 256;
     static final java.util.regex.Pattern PUBKEY = java.util.regex.Pattern.compile("^0x[0-9A-Fa-f]{64}$");
@@ -45,14 +49,57 @@ public class KeyUsesServer {
         Map<String, String> a = parseArgs(args);
         int port = Integer.parseInt(a.getOrDefault("port", "3010"));
         String indexFile = a.getOrDefault("index", "coin_index.tsv");
+        REUSE_FILE = a.get("reuse"); // CSV: miniaddress,signature_count,balance (header allowed)
 
         loadIndex(indexFile);
+        loadReuse();
+        // hot-reload the reuse list (the harvester appends to it) once a minute
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
+            KeyUsesServer::loadReuse, 60, 60, java.util.concurrent.TimeUnit.SECONDS);
 
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         server.createContext("/keyaudit", KeyUsesServer::handle);
+        server.createContext("/reuse", KeyUsesServer::handleReuse);
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
         server.start();
-        System.err.println("KeyUses backend on 127.0.0.1:" + port + " — " + INDEX.size() + " addresses, archive_tip=" + ARCHIVE_TIP);
+        System.err.println("KeyUses backend on 127.0.0.1:" + port + " — " + INDEX.size()
+                + " addresses, archive_tip=" + ARCHIVE_TIP + ", reuse=" + REUSE.size());
+    }
+
+    // Load the reuse list (Mx,count,balance). Converts Mx->0x. No signatures involved.
+    static void loadReuse() {
+        if (REUSE_FILE == null) return;
+        try {
+            java.io.File f = new java.io.File(REUSE_FILE);
+            if (!f.exists()) return;
+            if (f.lastModified() == REUSE_MTIME) return; // unchanged
+            Map<String, long[]> m = new HashMap<>();
+            try (java.io.BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty() || line.startsWith("#")) continue;
+                    String[] p = line.split(",");
+                    if (p.length < 3) continue;
+                    String addr = p[0].trim();
+                    if (addr.equalsIgnoreCase("miniaddress") || addr.equalsIgnoreCase("address")) continue; // header
+                    String hex;
+                    try {
+                        if (addr.toLowerCase().startsWith("mx")) hex = Address.convertMinimaAddress(addr).to0xString();
+                        else hex = new MiniData(addr).to0xString();
+                    } catch (Exception e) { continue; }
+                    long count, bal;
+                    try { count = Long.parseLong(p[1].trim()); bal = (long) Double.parseDouble(p[2].trim()); }
+                    catch (NumberFormatException e) { continue; }
+                    m.put(hex.toUpperCase(), new long[]{ count, bal });
+                }
+            }
+            REUSE = m;
+            REUSE_MTIME = f.lastModified();
+            System.err.println("loaded reuse list: " + m.size() + " reused addresses");
+        } catch (Exception e) {
+            System.err.println("reuse load failed: " + e.getMessage());
+        }
     }
 
     static void loadIndex(String path) throws IOException {
@@ -191,6 +238,60 @@ public class KeyUsesServer {
         resp.put("status", true);
         resp.put("archive_tip", ARCHIVE_TIP);
         resp.put("addresses", out);
+        send(ex, 200, resp.toString());
+    }
+
+    // Reuse check: GET /reuse?addrs=Mx|0x,...  -> per-address known-reuse status.
+    // Returns public facts only (reused / count / balance) — no signatures.
+    static void handleReuse(HttpExchange ex) throws IOException {
+        ex.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+        ex.getResponseHeaders().set("Content-Type", "application/json");
+        String path = ex.getRequestURI().getPath();
+        String query = ex.getRequestURI().getRawQuery();
+
+        if (path.endsWith("/health")) {
+            send(ex, 200, "{\"status\":true,\"reused_addresses\":" + REUSE.size() + "}");
+            return;
+        }
+        String addrsParam = paramValue(query, "addrs");
+        if (addrsParam == null || addrsParam.trim().isEmpty()) {
+            send(ex, 400, "{\"status\":false,\"error\":\"no addrs parameter\"}");
+            return;
+        }
+        String[] addrs = addrsParam.split(",");
+        if (addrs.length > MAX_KEYS) { send(ex, 400, "{\"status\":false,\"error\":\"too many addresses\"}"); return; }
+
+        Map<String, long[]> reuse = REUSE; // snapshot (volatile)
+        JSONArray out = new JSONArray();
+        for (String raw : addrs) {
+            String input = raw.trim();
+            if (input.isEmpty()) continue;
+            String hex, mini;
+            try {
+                if (input.toLowerCase().startsWith("mx")) hex = Address.convertMinimaAddress(input).to0xString();
+                else hex = new MiniData(input).to0xString();
+                mini = new Address(new MiniData(hex)).getMinimaAddress();
+            } catch (Exception e) {
+                JSONObject bad = new JSONObject();
+                bad.put("input", input);
+                bad.put("error", "not a valid Mx or 0x address");
+                out.add(bad);
+                continue;
+            }
+            long[] v = reuse.get(hex.toUpperCase());
+            JSONObject j = new JSONObject();
+            j.put("input", input);
+            j.put("address", hex);
+            j.put("miniaddress", mini);
+            j.put("reused", v != null);
+            j.put("reuse_count", v == null ? 0 : v[0]);
+            j.put("balance", v == null ? 0 : v[1]);
+            out.add(j);
+        }
+        JSONObject resp = new JSONObject();
+        resp.put("status", true);
+        resp.put("reused_total", reuse.size());
+        resp.put("results", out);
         send(ex, 200, resp.toString());
     }
 
