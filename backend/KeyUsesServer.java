@@ -37,8 +37,9 @@ import org.minima.utils.json.JSONObject;
 public class KeyUsesServer {
 
     static Map<String, long[]> INDEX = new HashMap<>(300000);
-    // Known one-time-key REUSE: 0x-address (UPPER) -> { reuse_count, balance }. Public keys/facts only.
-    static volatile Map<String, long[]> REUSE = new HashMap<>();
+    // Known one-time-key REUSE: 0x-address (UPPER) -> reuse facts. Public facts only — no signatures.
+    static final class ReuseInfo { final long count; final String balance; ReuseInfo(long c, String b){ count=c; balance=b; } }
+    static volatile Map<String, ReuseInfo> REUSE = new HashMap<>();
     static volatile String REUSE_FILE = null;
     static volatile long REUSE_MTIME = 0;
     static long ARCHIVE_TIP = -1;
@@ -57,13 +58,24 @@ public class KeyUsesServer {
         java.util.concurrent.Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
             KeyUsesServer::loadReuse, 60, 60, java.util.concurrent.TimeUnit.SECONDS);
 
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        // Backlog 0 meant "JDK default", which is small — under a burst, connections were refused at
+        // the accept queue before any of our threads saw them. Set it explicitly.
+        //
+        // The pool was a flat 4. Every request is in-memory map lookups plus address derivation, so
+        // it is short and CPU-bound, but 4 threads made concurrent callers queue behind each other:
+        // measured against the live host, median latency went 0.13s (1 concurrent) -> 0.93s (64).
+        // Scale with the machine and allow an override, because this runs on a Raspberry Pi where
+        // over-threading is as bad as under-threading.
+        int threads = Integer.parseInt(a.getOrDefault("threads",
+                String.valueOf(Math.max(8, Runtime.getRuntime().availableProcessors() * 2))));
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 128);
         server.createContext("/keyaudit", KeyUsesServer::handle);
         server.createContext("/reuse", KeyUsesServer::handleReuse);
-        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
+        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(threads));
         server.start();
         System.err.println("KeyUses backend on 127.0.0.1:" + port + " — " + INDEX.size()
-                + " addresses, archive_tip=" + ARCHIVE_TIP + ", reuse=" + REUSE.size());
+                + " addresses, archive_tip=" + ARCHIVE_TIP + ", reuse=" + REUSE.size()
+                + ", threads=" + threads);
     }
 
     // Load the reuse list (Mx,count,balance). Converts Mx->0x. No signatures involved.
@@ -73,7 +85,7 @@ public class KeyUsesServer {
             java.io.File f = new java.io.File(REUSE_FILE);
             if (!f.exists()) return;
             if (f.lastModified() == REUSE_MTIME) return; // unchanged
-            Map<String, long[]> m = new HashMap<>();
+            Map<String, ReuseInfo> m = new HashMap<>();
             try (java.io.BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)) {
                 String line;
                 while ((line = br.readLine()) != null) {
@@ -88,10 +100,10 @@ public class KeyUsesServer {
                         if (addr.toLowerCase().startsWith("mx")) hex = Address.convertMinimaAddress(addr).to0xString();
                         else hex = new MiniData(addr).to0xString();
                     } catch (Exception e) { continue; }
-                    long count, bal;
-                    try { count = Long.parseLong(p[1].trim()); bal = (long) Double.parseDouble(p[2].trim()); }
+                    long count; String bal = p[2].trim();
+                    try { count = Long.parseLong(p[1].trim()); Double.parseDouble(bal); } // validate; keep full precision
                     catch (NumberFormatException e) { continue; }
-                    m.put(hex.toUpperCase(), new long[]{ count, bal });
+                    m.put(hex.toUpperCase(), new ReuseInfo(count, bal));
                 }
             }
             REUSE = m;
@@ -159,6 +171,7 @@ public class KeyUsesServer {
             return;
         }
 
+        Map<String, ReuseInfo> reuse = REUSE; // snapshot (volatile) — one consistent view per request
         JSONArray out = new JSONArray();
         for (String pkraw : pks) {
             String pk = pkraw.trim();
@@ -185,6 +198,7 @@ public class KeyUsesServer {
                 continue;
             }
             long[] v = INDEX.get(address.toUpperCase());
+            ReuseInfo ri = reuse.get(address.toUpperCase());
             JSONObject j = new JSONObject();
             j.put("publickey", pk);
             j.put("address", address);
@@ -193,6 +207,9 @@ public class KeyUsesServer {
             j.put("spent_coins", v == null ? 0 : v[1]);
             j.put("firstblock", v == null ? -1 : v[2]);
             j.put("lastblock", v == null ? -1 : v[3]);
+            // Reuse verdict inlined so a caller auditing its own keys needs ONE round trip, not two.
+            j.put("reused", ri != null);
+            j.put("reuse_count", ri == null ? 0 : ri.count);
             out.add(j);
         }
 
@@ -200,7 +217,54 @@ public class KeyUsesServer {
         resp.put("status", true);
         resp.put("archive_tip", ARCHIVE_TIP);
         resp.put("keys", out);
+        // Tells the caller the per-key `reused` fields above are authoritative, so it can skip the
+        // separate /reuse call. Absent on older deployments — clients must fall back, not assume.
+        resp.put("reuse_included", true);
+        resp.put("reused_total", reuse.size());
+
+        // Optional `&reuse=Mx|0x,...`: addresses the caller is about to trust with money but does
+        // NOT hold the key for (a rescue destination, a payment recipient). Those can only be judged
+        // by the reuse index — a key audit says nothing about a key you don't have — so answering
+        // them in the same response removes the second round trip entirely.
+        String destParam = paramValue(query, "reuse");
+        if (destParam != null && !destParam.trim().isEmpty()) {
+            String[] dests = destParam.split(",");
+            if (dests.length > MAX_KEYS) { send(ex, 400, "{\"status\":false,\"error\":\"too many addresses\"}"); return; }
+            resp.put("destinations", reuseResults(dests, reuse));
+        }
         send(ex, 200, resp.toString());
+    }
+
+    // Per-address reuse verdicts. Shared by /keyaudit's `reuse` parameter and /reuse itself so the
+    // two can never drift into disagreeing about the same address.
+    static JSONArray reuseResults(String[] addrs, Map<String, ReuseInfo> reuse) {
+        JSONArray out = new JSONArray();
+        for (String raw : addrs) {
+            String input = raw.trim();
+            if (input.isEmpty()) continue;
+            String hex, mini;
+            try {
+                if (input.toLowerCase().startsWith("mx")) hex = Address.convertMinimaAddress(input).to0xString();
+                else hex = new MiniData(input).to0xString();
+                mini = new Address(new MiniData(hex)).getMinimaAddress();
+            } catch (Exception e) {
+                JSONObject bad = new JSONObject();
+                bad.put("input", input);
+                bad.put("error", "not a valid Mx or 0x address");
+                out.add(bad);
+                continue;
+            }
+            ReuseInfo v = reuse.get(hex.toUpperCase());
+            JSONObject j = new JSONObject();
+            j.put("input", input);
+            j.put("address", hex);
+            j.put("miniaddress", mini);
+            j.put("reused", v != null);
+            j.put("reuse_count", v == null ? 0 : v.count);
+            j.put("balance", v == null ? "0" : v.balance);
+            out.add(j);
+        }
+        return out;
     }
 
     static void handleAddrs(HttpExchange ex, String addrsParam) throws IOException {
@@ -250,7 +314,10 @@ public class KeyUsesServer {
         String query = ex.getRequestURI().getRawQuery();
 
         if (path.endsWith("/health")) {
-            send(ex, 200, "{\"status\":true,\"reused_addresses\":" + REUSE.size() + "}");
+            // reuse_mtime = epoch seconds of the reuse.csv the backend last loaded
+            // (advances every 30-min harvest cycle) so monitors can detect a stale list.
+            send(ex, 200, "{\"status\":true,\"reused_addresses\":" + REUSE.size()
+                    + ",\"reuse_mtime\":" + (REUSE_MTIME / 1000) + "}");
             return;
         }
         String addrsParam = paramValue(query, "addrs");
@@ -261,37 +328,11 @@ public class KeyUsesServer {
         String[] addrs = addrsParam.split(",");
         if (addrs.length > MAX_KEYS) { send(ex, 400, "{\"status\":false,\"error\":\"too many addresses\"}"); return; }
 
-        Map<String, long[]> reuse = REUSE; // snapshot (volatile)
-        JSONArray out = new JSONArray();
-        for (String raw : addrs) {
-            String input = raw.trim();
-            if (input.isEmpty()) continue;
-            String hex, mini;
-            try {
-                if (input.toLowerCase().startsWith("mx")) hex = Address.convertMinimaAddress(input).to0xString();
-                else hex = new MiniData(input).to0xString();
-                mini = new Address(new MiniData(hex)).getMinimaAddress();
-            } catch (Exception e) {
-                JSONObject bad = new JSONObject();
-                bad.put("input", input);
-                bad.put("error", "not a valid Mx or 0x address");
-                out.add(bad);
-                continue;
-            }
-            long[] v = reuse.get(hex.toUpperCase());
-            JSONObject j = new JSONObject();
-            j.put("input", input);
-            j.put("address", hex);
-            j.put("miniaddress", mini);
-            j.put("reused", v != null);
-            j.put("reuse_count", v == null ? 0 : v[0]);
-            j.put("balance", v == null ? 0 : v[1]);
-            out.add(j);
-        }
+        Map<String, ReuseInfo> reuse = REUSE; // snapshot (volatile)
         JSONObject resp = new JSONObject();
         resp.put("status", true);
         resp.put("reused_total", reuse.size());
-        resp.put("results", out);
+        resp.put("results", reuseResults(addrs, reuse));
         send(ex, 200, resp.toString());
     }
 
@@ -306,8 +347,33 @@ public class KeyUsesServer {
         return null;
     }
 
+    // Responses are large (a 64-key audit is ~19.6KB) and highly compressible — all hex strings and
+    // repeated JSON field names. Apache in front of this is NOT compressing them (verified against
+    // the live host: 19,630 bytes whether or not the client sends Accept-Encoding: gzip), and the
+    // nodes calling us are often on slow mobile links, so compress here rather than depend on the
+    // proxy being configured.
+    //
+    // Cache-Control matters as much: the index only advances when the harvester runs, so a repeated
+    // identical query is safe to serve from cache briefly — which is what stops a node that retries
+    // from costing a full round trip every time.
     static void send(HttpExchange ex, int code, String body) throws IOException {
         byte[] b = body.getBytes(StandardCharsets.UTF_8);
+        if (code == 200) ex.getResponseHeaders().set("Cache-Control", "public, max-age=60");
+
+        String accept = ex.getRequestHeaders().getFirst("Accept-Encoding");
+        boolean wantGzip = code == 200 && b.length > 1024
+                && accept != null && accept.toLowerCase().contains("gzip");
+        if (wantGzip) {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream(b.length / 4);
+            try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(bos)) { gz.write(b); }
+            byte[] z = bos.toByteArray();
+            // Only use it if it actually helped — never ship a "compressed" body that grew.
+            if (z.length < b.length) {
+                ex.getResponseHeaders().set("Content-Encoding", "gzip");
+                ex.getResponseHeaders().add("Vary", "Accept-Encoding");
+                b = z;
+            }
+        }
         ex.sendResponseHeaders(code, b.length);
         try (OutputStream os = ex.getResponseBody()) { os.write(b); }
     }
