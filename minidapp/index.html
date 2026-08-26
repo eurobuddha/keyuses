@@ -70,6 +70,33 @@
         .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation: s 0.7s linear infinite; vertical-align:-2px; margin-right:8px; }
         @keyframes s { to { transform: rotate(360deg); } }
         .coverage { font-size: 0.7rem; color: var(--text-dim); margin-top: 10px; text-align:center; }
+
+        /* Phone / narrow view: the 5-column table can't fit a full (untruncated) address AND the
+           good/bad status without pushing the status off-screen. Reflow each key into a stacked
+           card — address wraps in full, status pinned top-right so the verdict is always visible. */
+        @media (max-width: 560px) {
+            body { padding: 14px; }
+            .card { padding: 18px 15px; }
+            .tablewrap { overflow-x: visible; }
+            table thead { display: none; }
+            table, table tbody { display: block; width: 100%; }
+            table tr {
+                display: block; position: relative;
+                border: 1px solid var(--border); border-radius: 12px;
+                background: rgba(0,0,0,0.22); padding: 12px 14px; margin-bottom: 10px;
+            }
+            table td { display: block; border-bottom: none; text-align: left; padding: 0; }
+            td.addr { max-width: none; padding-right: 88px; margin-bottom: 10px; }
+            td.addr .amono { font-size: 0.72rem; color: var(--text); }
+            td[data-label] { display: inline-block; margin: 2px 16px 2px 0; font-size: 0.9rem; font-weight: 600; color: var(--text); }
+            td[data-label]::before {
+                content: attr(data-label); display: block;
+                font-size: 0.58rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+                color: var(--text-dim); margin-bottom: 1px;
+            }
+            td.st { position: absolute; top: 12px; right: 12px; }
+            td.st .chip { font-size: 0.6rem; }
+        }
     </style>
 </head>
 <body>
@@ -146,7 +173,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.51</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.52</div>
 </div>
 
 <script>
@@ -155,7 +182,7 @@ var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
 var MODE = "hosted";
 
-MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.51 ready"); });
+MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.52 ready"); });
 
 function setMode(m){
     MODE = m;
@@ -344,10 +371,10 @@ function renderRows(rows){
             + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
         addrCell.querySelector(".amono").textContent = r.addr;
         tr.appendChild(addrCell);
-        var rest = '<td>' + r.local.toLocaleString() + '</td>'
-            + '<td>' + r.sigs.toLocaleString() + '</td>'
-            + '<td>' + r.coins.toLocaleString() + '</td>'
-            + '<td><span class="chip ' + cls + '">' + chip + '</span></td>';
+        var rest = '<td data-label="Node uses">' + r.local.toLocaleString() + '</td>'
+            + '<td data-label="On-chain">' + r.sigs.toLocaleString() + '</td>'
+            + '<td data-label="Spent coins">' + r.coins.toLocaleString() + '</td>'
+            + '<td class="st"><span class="chip ' + cls + '">' + chip + '</span></td>';
         var tmp = document.createElement("tbody"); tmp.innerHTML = "<tr>" + rest + "</tr>";
         while (tmp.firstChild.firstChild) tr.appendChild(tmp.firstChild.firstChild);
         tb.appendChild(tr);
