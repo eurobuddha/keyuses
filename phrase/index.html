@@ -178,7 +178,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.7</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.8</div>
 </div>
 
 <!-- derivation engine: sha3 + wordlist + core (also imported by the worker) -->
@@ -186,7 +186,7 @@
 <script src="wordlist.js"></script>
 <script src="derive.js"></script>
 <script>
-var VERSION = "0.1.7";
+var VERSION = "0.1.8";
 var AUDIT_API = "https://eurobuddha.com/keyaudit";
 var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
@@ -333,13 +333,16 @@ function runAddrs(){
    balance tokenid:0x00 megammr:true address:<a>
    (response: [{tokenid:"0x00", confirmed, unconfirmed, ...}] — one summary row per token,
    verified against a live -megammr node.) On a non-mega node megammr:true silently
-   degrades to the wallet's own coins, so it is only used after `megammr action:info`
-   confirms enabled. Calls back with UPPER(addr) -> total Minima, or null when unavailable. */
+   degrades to the wallet's own coins, so it is gated on `status` reporting megammr:true.
+   NOTE: the gate must be a READ command — `megammr action:info` is on the node's
+   WRITE-command list, so a normally-installed (read-permission) dapp can't run it;
+   `status` and `balance` are read-allowed. Calls back with UPPER(addr) -> total
+   Minima, or null when unavailable. */
 function megaBalances(derived, done){
     if (!HAS_MDS || typeof MDS === "undefined" || !MDS.cmd){ done(null); return; }
-    MDS.cmd("megammr action:info", function(res){
+    MDS.cmd("status", function(res){
         var inf = res && res.status ? res.response : null;
-        if (!inf || !(inf.enabled === true || inf.enabled === "true")){ done(null); return; }
+        if (!inf || !(inf.megammr === true || inf.megammr === "true")){ done(null); return; }
         var n = derived.length, finished = 0, idx = 0, map = {};
         if (!n){ done(map); return; }
         setProg(0, n, "Reading balances from your MegaMMR 0 / " + n + " …");
