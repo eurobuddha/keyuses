@@ -148,7 +148,7 @@
             <div class="tablewrap" style="margin-top:14px">
                 <table>
                     <thead><tr>
-                        <th>Address (tap to copy)</th><th>On-chain signatures</th><th>Spent coins</th><th>Balance (audit-node view)</th><th>Status</th>
+                        <th>Address (tap to copy)</th><th>On-chain signatures</th><th>Spent coins</th><th id="balTh">Balance (audit-node view)</th><th>Status</th>
                     </tr></thead>
                     <tbody id="rows"></tbody>
                 </table>
@@ -167,7 +167,9 @@
             <p style="margin-top:8px">This dapp reconstructs the addresses a seed produces under both schemes and reports, per address:
             whether it appears in the <strong>witness-confirmed reuse list</strong>, how many times it has
             <strong>signed on-chain</strong>, and the balance <em>as the audit node sees it</em> (it can't see coins it
-            doesn't track, so "unknown" there says nothing about your real balance). From the busiest key it computes the
+            doesn't track, so "unknown" there says nothing about your real balance — but when this app runs on a
+            <code class="inl">-megammr</code> node it reads real balances from your own node's full coin set instead).
+            From the busiest key it computes the
             <strong>safe <code class="inl">keyuses</code></strong> value to set when you next restore this seed, so a
             re-sync never re-issues a leaf the chain has already seen.</p>
             <p style="margin-top:8px"><strong>Privacy:</strong> the phrase and derived seed stay on your device — only the
@@ -176,7 +178,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.5</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.6</div>
 </div>
 
 <!-- derivation engine: sha3 + wordlist + core (also imported by the worker) -->
@@ -184,7 +186,7 @@
 <script src="wordlist.js"></script>
 <script src="derive.js"></script>
 <script>
-var VERSION = "0.1.5";
+var VERSION = "0.1.6";
 var AUDIT_API = "https://eurobuddha.com/keyaudit";
 var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
@@ -251,8 +253,10 @@ function runPhrase(){
     deriveAll(seedHex, jobs, function(derived){
         // derived: [{index, keysPerLevel, address(0x), miniaddress(Mx), publickey}] in job order
         auditAddresses(derived.map(function(d){ return d.miniaddress; }), function(stats, reuse){
-            setBusy(false);
-            renderResults(derived, stats, reuse, { seedHex: seedHex, anyphrase: anyphrase, numkeys: numkeys, newkeys: newkeys });
+            megaBalances(derived, function(balmap){
+                setBusy(false);
+                renderResults(derived, stats, reuse, { seedHex: seedHex, anyphrase: anyphrase, numkeys: numkeys, newkeys: newkeys }, balmap);
+            });
         });
     });
 }
@@ -315,9 +319,48 @@ function runAddrs(){
     setBusy(true, "Auditing…");
     setProg(0, 1, "Looking up " + list.length + " address(es) …");
     auditAddresses(list, function(stats, reuse){
-        setBusy(false);
         var derived = list.map(function(a, i){ return { index:i, miniaddress:a, address:a, publickey:null }; });
-        renderResults(derived, stats, reuse, { addrMode: true, count: list.length });
+        megaBalances(derived, function(balmap){
+            setBusy(false);
+            renderResults(derived, stats, reuse, { addrMode: true, count: list.length }, balmap);
+        });
+    });
+}
+
+/* ---------- real balances from a MegaMMR node ----------
+   A node started with -megammr holds the FULL unspent coin set, so when this app runs
+   installed on one, real per-address balances are available locally:
+   coins relevant:false address:<a> tokenid:0x00 megammr:true
+   On a non-mega node that search silently degrades to tracked/recent coins, so it is
+   only used after `megammr action:info` confirms enabled:true. Calls back with
+   UPPER(addr) -> total unspent Minima, or null when unavailable. */
+function megaBalances(derived, done){
+    if (!HAS_MDS || typeof MDS === "undefined" || !MDS.cmd){ done(null); return; }
+    MDS.cmd("megammr action:info", function(res){
+        var inf = res && res.status ? res.response : null;
+        if (!inf || inf.enabled !== true){ done(null); return; }
+        var n = derived.length, finished = 0, idx = 0, map = {};
+        if (!n){ done(map); return; }
+        setProg(0, n, "Reading balances from your MegaMMR 0 / " + n + " …");
+        function fire(){
+            if (idx >= n) return;
+            var d = derived[idx++];
+            var addr = d.address || d.miniaddress;
+            MDS.cmd("coins relevant:false address:" + addr + " tokenid:0x00 megammr:true", function(r2){
+                if (r2 && r2.status && Array.isArray(r2.response)){
+                    var tot = 0;
+                    r2.response.forEach(function(c){
+                        if (c && c.spent !== true){ var a = Number(c.amount); if (isFinite(a)) tot += a; }
+                    });
+                    if (d.address) map[String(d.address).toUpperCase()] = tot;
+                    if (d.miniaddress) map[String(d.miniaddress).toUpperCase()] = tot;
+                }
+                finished++;
+                setProg(finished, n, "Reading balances from your MegaMMR " + finished + " / " + n + " …");
+                if (finished >= n) done(map); else fire();
+            });
+        }
+        for (var k = 0; k < Math.min(4, n); k++) fire();
     });
 }
 
@@ -387,7 +430,7 @@ function backendGet(url, cb){
 }
 
 /* ---------- render ---------- */
-function renderResults(derived, stats, reuse, meta){
+function renderResults(derived, stats, reuse, meta, balmap){
     var rows = [], anyReuse = false, recommended = 0, maxReuse = 0, unknown = 0;
     derived.forEach(function(d){
         var key0x = d.address ? String(d.address).toUpperCase() : null;
@@ -399,7 +442,11 @@ function renderResults(derived, stats, reuse, meta){
         var reused = !!(rinfo && rinfo.reused);
         if (reused){ anyReuse = true; maxReuse = Math.max(maxReuse, Number(rinfo.reuse_count) || 0); }
         var sigs = st ? st.sigs : 0, coins = st ? st.coins : 0;
-        var bal = rinfo && rinfo.balance !== undefined ? rinfo.balance : (st ? "" : null);
+        // local MegaMMR balance (real, 0 included) beats the audit node's partial view
+        var lb = balmap ? ((key0x && balmap[key0x] !== undefined) ? balmap[key0x]
+                        : (keyMx ? balmap[keyMx] : undefined)) : undefined;
+        var balLocal = lb !== undefined;
+        var bal = balLocal ? lb : (rinfo && rinfo.balance !== undefined ? rinfo.balance : (st ? "" : null));
         if (!st && !rinfo) unknown++;
         // Worst-case uses for THIS key: spend_blocks undercounts (2 spends in one block = 1),
         // so take the max of spend-blocks, spent-coins and the witness-confirmed count.
@@ -409,8 +456,10 @@ function renderResults(derived, stats, reuse, meta){
         if (d.keysPerLevel !== 128)
             recommended = Math.max(recommended, sigs, coins, rinfo ? (Number(rinfo.reuse_count) || 0) : 0);
         rows.push({ i: d.index + 1, kpl: d.keysPerLevel, addr: d.miniaddress || d.address, sigs: sigs, coins: coins,
-                    balance: bal, reused: reused, reuseCount: rinfo ? Number(rinfo.reuse_count) : 0 });
+                    balance: bal, balLocal: balLocal, reused: reused, reuseCount: rinfo ? Number(rinfo.reuse_count) : 0 });
     });
+
+    document.getElementById("balTh").textContent = balmap ? "Balance (your MegaMMR)" : "Balance (audit-node view)";
 
     renderVerdict(anyReuse, recommended, maxReuse, meta);
     renderRows(rows);
@@ -419,8 +468,10 @@ function renderResults(derived, stats, reuse, meta){
     var cov = document.getElementById("coverage");
     cov.textContent = "On-chain signatures are counted from the eurobuddha archive (per spend-block; two spends of one "
         + "address in a single block count once). Reuse flags come from the witness-confirmed canonical list. "
-        + "Balance is what the audit server's own node can see at the address — it does not track your coins, so "
-        + "'unknown' does NOT mean the address is empty; check the real balance on your own node. "
+        + (balmap
+            ? "Balance is read from your own node's MegaMMR (the full unspent coin set), so it is real — a 0 there is a true zero. "
+            : "Balance is what the audit server's own node can see at the address — it does not track your coins, so "
+              + "'unknown' does NOT mean the address is empty; check the real balance on your own node. ")
         + (unknown ? (unknown + " address(es) had no on-chain history yet — unused, nothing to report.") : "");
     document.getElementById("results").classList.remove("hidden");
 }
@@ -506,9 +557,12 @@ function renderRows(rows){
             + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
         addrCell.querySelector(".amono").textContent = r.addr;
         tr.appendChild(addrCell);
-        // Balance comes from the audit server's node, which only sees coins it tracks or
-        // recent unpruned ones — 0 there means "not visible to it", NOT an empty address.
-        var bal = (r.balance === null || r.balance === undefined || r.balance === "") ? "—"
+        // Local (MegaMMR) balances are real, zero included. Backend balances come from the
+        // audit server's node, which only sees coins it tracks or recent unpruned ones —
+        // 0 there means "not visible to it", NOT an empty address.
+        var bal = r.balLocal
+                ? Number(r.balance).toLocaleString(undefined, { maximumFractionDigits: 8 })
+                : (r.balance === null || r.balance === undefined || r.balance === "") ? "—"
                 : (Number(r.balance) === 0 ? "unknown"
                 : Number(r.balance).toLocaleString(undefined, { maximumFractionDigits: 8 }));
         var rest = '<td>' + r.sigs.toLocaleString() + '</td>'
