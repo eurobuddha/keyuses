@@ -1,14 +1,27 @@
 # KeyUses — Minima key-reuse risk auditor
 
-Minima signatures are **stateful**. Each of a node's 64 keys is a 64-ary, 3-level
-hash-based (Winternitz) tree capped at **262,144** one-time signatures. Every signature
-consumes the next leaf; the node tracks this with a per-key `uses` counter. **Reusing a
-leaf is forgeable** (a Winternitz OTS reused twice leaks the private key).
+Minima signatures are **stateful**. A node's keys are hash-based (Winternitz) trees in one
+of two shapes:
+
+- **Classic** — 64 default keys, each a 64-ary, 3-level tree capped at **262,144** one-time
+  signatures, tracked with a per-key `uses` counter.
+- **Block-as-keyuses** (minimaCore 1.1.2.31+ started with `-blockaskeyuses`) — 32 default
+  keys, each 128-ary, 4 levels, capped at **268,435,456** signatures; the leaf index is the
+  **current block height** (plus a per-block counter), so the node never needs a manual
+  counter. Same seed, **different pubkeys/addresses**: the pubkey is the MMR root over the
+  top level's WOTS keys, and 128 leaves give a different root than 64 (the level count never
+  enters the pubkey). Seed→key derivation is otherwise identical.
+
+Every signature consumes a leaf. **Reusing a leaf is forgeable** (a Winternitz OTS reused
+twice leaks the private key).
 
 The operational danger: when you **re-sync from your seed**, the regenerated keys start at
 `uses = 0` and the node can't know how many times they were really used. You must pass
 `keyuses:N` on `archive action:import/resync`. **Set it too low and the node re-issues
-leaves it already spent on-chain.** KeyUses detects exactly this.
+leaves it already spent on-chain.** KeyUses detects exactly this. (Block-as-keyuses keys
+don't take a `keyuses` value — the block height makes every re-sync land above all prior
+signatures — so the counter checks apply to classic keys only; the reuse-list check covers
+both shapes.)
 
 ## Data model (important)
 
@@ -52,9 +65,18 @@ is impossible; we measure key uses from **coin spends** instead.
 
 ### Witness path (recent history only)
 `scanner/KeyUseScanner.java` + `scanner/CalibrateDecoder.java` implement *witness-exact* leaf-index
-recovery — proven correct for every index `0..262143`. It's unusable over the archive (no retained
-witnesses) but works on the unpruned tip / the explorer's post-block-~1.15M txpows, where exact
-leaf indices are available. Kept for that optional precision path.
+recovery. The key geometry is read from each signature (levels = proof count, keys/level =
+2^prooflen), so both shapes decode — proven exact by CalibrateDecoder for classic indices
+`0..262143` and block-as-keyuses spot indices up to `268,435,455` (the last leaf), direct and
+after serialization round-trip. It's unusable over the archive (no retained witnesses) but works
+on the unpruned tip / the explorer's post-block-~1.15M txpows, where exact leaf indices are
+available. Kept for that optional precision path.
+
+### Derivation golden vectors
+`scanner/DeriveVectors.java` (compiled against `scanner/minima-blockkeyuses.jar`, extracted from
+the minima-core `merge/upstream-1.1.2.31` branch) generates `phrase/derive.vectors.json` with
+Minima's own classes in both shapes; `node phrase/derive.test.js` proves the in-browser
+derivation (`phrase/derive.js`) byte-exact against them.
 
 ## Build & run the coin scanner
 

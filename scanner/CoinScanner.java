@@ -172,7 +172,7 @@ public class CoinScanner {
             for (Object o : out) {
                 JSONObject j = (JSONObject) o;
                 System.err.println(String.format("%s  %5s  %12s  %11s  %s",
-                    String.valueOf(j.get("publickey")).substring(0,18)+"...",
+                    String.valueOf(j.get("publickey")),
                     j.get("localuses"), j.get("onchain_signatures"), j.get("spent_coins_upperbound"),
                     ((Boolean)j.get("reuserisk")) ? "*** REUSE ***" : "ok"));
             }

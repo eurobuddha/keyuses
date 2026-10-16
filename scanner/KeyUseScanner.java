@@ -36,9 +36,9 @@ import org.minima.utils.json.parser.JSONParser;
  */
 public class KeyUseScanner {
 
-    // Default key geometry: 64-ary, 3 levels => each level is a 64-leaf MMR (proof length 6).
-    static final int KEYS_PER_LEVEL = 64;
-    static final int LEVEL_PROOF_LEN = 6; // log2(64)
+    // Key geometry is read from each signature (see recoverLeafIndex). Known shapes:
+    // classic 64-ary/3-level (proof length 6) and block-as-keyuses 128-ary/4-level
+    // (proof length 7, minimaCore -blockaskeyuses).
 
     static class Usage {
         long usecount = 0;
@@ -194,7 +194,7 @@ public class KeyUseScanner {
                 boolean ok = derived == u.localuses;
                 if (ok) passes++; else fails++;
                 System.err.println((ok ? "OK  " : "MISMATCH ")
-                        + e.getKey().substring(0, 18) + "...  onchain(max+1)=" + derived
+                        + e.getKey() + "  onchain(max+1)=" + derived
                         + "  localuses=" + u.localuses + "  count=" + u.usecount);
             }
             System.err.println("passes=" + passes + " mismatch=" + fails);
@@ -256,7 +256,7 @@ public class KeyUseScanner {
 
             if (shown < 15 || klass.equals("REUSE-EXPOSURE")) {
                 System.err.println(String.format("%-15s %s  n=%d  min=%d max=%d  monotonic=%s distinct=%s",
-                        klass, e.getKey().substring(0, 18) + "...", ev.size(), min, max, monotonic, distinct));
+                        klass, e.getKey(), ev.size(), min, max, monotonic, distinct));
                 shown++;
             }
         }
@@ -278,20 +278,28 @@ public class KeyUseScanner {
      * child, i.e. the signed node is the RIGHT child -> position bit set. Chunk 0 is
      * the leaf-level sibling = LSB.
      *
-     *   pos_L   = sum_i ( chunk[i].isLeft() ? 1<<i : 0 )      over the 6 chunks
-     *   leaf    = pos0*64*64 + pos1*64 + pos2
+     *   pos_L   = sum_i ( chunk[i].isLeft() ? 1<<i : 0 )      over the proof chunks
+     *   leaf    = ((pos0*kpl)+pos1)*kpl + ...                 kpl = 2^prooflen
+     *
+     * The geometry comes from the signature itself: levels = proofs.size(), keysPerLevel
+     * = 2^prooflen. Accepted shapes: classic (3 levels, prooflen 6, kpl 64) and
+     * block-as-keyuses (4 levels, prooflen 7, kpl 128); anything else is an anomaly.
      */
     static long recoverLeafIndex(Signature sig) throws AnomalyException {
         ArrayList<SignatureProof> proofs = sig.getAllSignatureProofs();
-        if (proofs.size() != 3) {
-            throw new AnomalyException("proofs.size()=" + proofs.size() + " (expected 3)");
+        int levels = proofs.size();
+        if (levels != 3 && levels != 4) {
+            throw new AnomalyException("proofs.size()=" + levels + " (expected 3 or 4)");
         }
+        int expectPlen = (levels == 3) ? 6 : 7;
+        int kpl = 1 << expectPlen;
         long idx = 0;
         for (SignatureProof sp : proofs) {
             MMRProof proof = sp.getProof();
             int plen = proof.getProofLength();
-            if (plen != LEVEL_PROOF_LEN) {
-                throw new AnomalyException("level prooflen=" + plen + " (expected " + LEVEL_PROOF_LEN + ")");
+            if (plen != expectPlen) {
+                throw new AnomalyException("level prooflen=" + plen + " (expected " + expectPlen
+                        + " for a " + levels + "-level key)");
             }
             int pos = 0;
             for (int i = 0; i < plen; i++) {
@@ -299,7 +307,7 @@ public class KeyUseScanner {
                     pos |= (1 << i);
                 }
             }
-            idx = idx * KEYS_PER_LEVEL + pos;
+            idx = idx * kpl + pos;
         }
         return idx;
     }

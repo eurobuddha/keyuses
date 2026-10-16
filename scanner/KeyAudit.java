@@ -39,7 +39,6 @@ import org.minima.utils.json.parser.JSONParser;
  */
 public class KeyAudit {
 
-    static final long MAXUSES = 262144;
     static final long MARGIN  = 256;
 
     public static void main(String[] args) throws Exception {
@@ -111,7 +110,7 @@ public class KeyAudit {
         for (Object o : out) {
             JSONObject j = (JSONObject) o;
             System.err.println(String.format("%s  %10s  %12s  %11s  %s",
-                String.valueOf(j.get("publickey")).substring(0, 18) + "...",
+                String.valueOf(j.get("publickey")),
                 j.get("localuses"), j.get("onchain_signatures"),
                 j.get("spent_coins_upperbound"), ((Boolean) j.get("reuserisk")) ? "*** REUSE ***" : "ok"));
         }
