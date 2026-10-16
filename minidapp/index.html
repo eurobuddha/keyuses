@@ -66,7 +66,7 @@
         .tablewrap { overflow-x: auto; }
         .status { margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 0.8rem; display:none; }
         .status.show { display:block; } .status.error { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); color: var(--risk); }
-        .footer { text-align: center; margin-top: 18px; font-size: 0.75rem; color: rgba(255,255,255,0.45); letter-spacing: 0.05em; }
+        .footer { text-align: center; margin-top: 18px; font-size: 0.75rem; color: rgba(255,255,255,0.45); }
         .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(35,19,3,0.3); border-top-color:#231303; border-radius:50%; animation: s 0.7s linear infinite; vertical-align:-2px; margin-right:8px; }
         @keyframes s { to { transform: rotate(360deg); } }
         .coverage { font-size: 0.75rem; color: var(--text-dim); margin-top: 10px; text-align:center; }
@@ -176,7 +176,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.54</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.55</div>
 </div>
 
 <script>
@@ -185,7 +185,7 @@ var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
 var MODE = "hosted";
 
-MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.54 ready"); });
+MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.55 ready"); });
 
 function setMode(m){
     MODE = m;
