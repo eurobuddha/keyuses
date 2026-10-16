@@ -148,7 +148,7 @@
             <div class="tablewrap" style="margin-top:14px">
                 <table>
                     <thead><tr>
-                        <th>Address (tap to copy)</th><th>On-chain signatures</th><th>Spent coins</th><th>Balance</th><th>Status</th>
+                        <th>Address (tap to copy)</th><th>On-chain signatures</th><th>Spent coins</th><th>Balance (audit-node view)</th><th>Status</th>
                     </tr></thead>
                     <tbody id="rows"></tbody>
                 </table>
@@ -166,7 +166,8 @@
             Re-using a leaf leaks the key and makes forgery progressively easier.</p>
             <p style="margin-top:8px">This dapp reconstructs the addresses a seed produces under both schemes and reports, per address:
             whether it appears in the <strong>witness-confirmed reuse list</strong>, how many times it has
-            <strong>signed on-chain</strong>, and its current balance. From the busiest key it computes the
+            <strong>signed on-chain</strong>, and the balance <em>as the audit node sees it</em> (it can't see coins it
+            doesn't track, so "unknown" there says nothing about your real balance). From the busiest key it computes the
             <strong>safe <code class="inl">keyuses</code></strong> value to set when you next restore this seed, so a
             re-sync never re-issues a leaf the chain has already seen.</p>
             <p style="margin-top:8px"><strong>Privacy:</strong> the phrase and derived seed stay on your device — only the
@@ -175,7 +176,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.4</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.5</div>
 </div>
 
 <!-- derivation engine: sha3 + wordlist + core (also imported by the worker) -->
@@ -183,7 +184,7 @@
 <script src="wordlist.js"></script>
 <script src="derive.js"></script>
 <script>
-var VERSION = "0.1.4";
+var VERSION = "0.1.5";
 var AUDIT_API = "https://eurobuddha.com/keyaudit";
 var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
@@ -418,6 +419,8 @@ function renderResults(derived, stats, reuse, meta){
     var cov = document.getElementById("coverage");
     cov.textContent = "On-chain signatures are counted from the eurobuddha archive (per spend-block; two spends of one "
         + "address in a single block count once). Reuse flags come from the witness-confirmed canonical list. "
+        + "Balance is what the audit server's own node can see at the address — it does not track your coins, so "
+        + "'unknown' does NOT mean the address is empty; check the real balance on your own node. "
         + (unknown ? (unknown + " address(es) had no on-chain history yet — unused, nothing to report.") : "");
     document.getElementById("results").classList.remove("hidden");
 }
@@ -503,8 +506,11 @@ function renderRows(rows){
             + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
         addrCell.querySelector(".amono").textContent = r.addr;
         tr.appendChild(addrCell);
+        // Balance comes from the audit server's node, which only sees coins it tracks or
+        // recent unpruned ones — 0 there means "not visible to it", NOT an empty address.
         var bal = (r.balance === null || r.balance === undefined || r.balance === "") ? "—"
-                : Number(r.balance).toLocaleString(undefined, { maximumFractionDigits: 8 });
+                : (Number(r.balance) === 0 ? "unknown"
+                : Number(r.balance).toLocaleString(undefined, { maximumFractionDigits: 8 }));
         var rest = '<td>' + r.sigs.toLocaleString() + '</td>'
             + '<td>' + r.coins.toLocaleString() + '</td>'
             + '<td>' + bal + '</td>'
