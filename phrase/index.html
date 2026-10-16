@@ -178,7 +178,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.6</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.7</div>
 </div>
 
 <!-- derivation engine: sha3 + wordlist + core (also imported by the worker) -->
@@ -186,7 +186,7 @@
 <script src="wordlist.js"></script>
 <script src="derive.js"></script>
 <script>
-var VERSION = "0.1.6";
+var VERSION = "0.1.7";
 var AUDIT_API = "https://eurobuddha.com/keyaudit";
 var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
@@ -330,15 +330,16 @@ function runAddrs(){
 /* ---------- real balances from a MegaMMR node ----------
    A node started with -megammr holds the FULL unspent coin set, so when this app runs
    installed on one, real per-address balances are available locally:
-   coins relevant:false address:<a> tokenid:0x00 megammr:true
-   On a non-mega node that search silently degrades to tracked/recent coins, so it is
-   only used after `megammr action:info` confirms enabled:true. Calls back with
-   UPPER(addr) -> total unspent Minima, or null when unavailable. */
+   balance tokenid:0x00 megammr:true address:<a>
+   (response: [{tokenid:"0x00", confirmed, unconfirmed, ...}] — one summary row per token,
+   verified against a live -megammr node.) On a non-mega node megammr:true silently
+   degrades to the wallet's own coins, so it is only used after `megammr action:info`
+   confirms enabled. Calls back with UPPER(addr) -> total Minima, or null when unavailable. */
 function megaBalances(derived, done){
     if (!HAS_MDS || typeof MDS === "undefined" || !MDS.cmd){ done(null); return; }
     MDS.cmd("megammr action:info", function(res){
         var inf = res && res.status ? res.response : null;
-        if (!inf || inf.enabled !== true){ done(null); return; }
+        if (!inf || !(inf.enabled === true || inf.enabled === "true")){ done(null); return; }
         var n = derived.length, finished = 0, idx = 0, map = {};
         if (!n){ done(map); return; }
         setProg(0, n, "Reading balances from your MegaMMR 0 / " + n + " …");
@@ -346,11 +347,15 @@ function megaBalances(derived, done){
             if (idx >= n) return;
             var d = derived[idx++];
             var addr = d.address || d.miniaddress;
-            MDS.cmd("coins relevant:false address:" + addr + " tokenid:0x00 megammr:true", function(r2){
+            MDS.cmd("balance tokenid:0x00 megammr:true address:" + addr, function(r2){
                 if (r2 && r2.status && Array.isArray(r2.response)){
                     var tot = 0;
-                    r2.response.forEach(function(c){
-                        if (c && c.spent !== true){ var a = Number(c.amount); if (isFinite(a)) tot += a; }
+                    r2.response.forEach(function(t){
+                        if (t && String(t.tokenid) === "0x00"){
+                            var c = Number(t.confirmed), u = Number(t.unconfirmed);
+                            if (isFinite(c)) tot += c;
+                            if (isFinite(u)) tot += u;
+                        }
                     });
                     if (d.address) map[String(d.address).toUpperCase()] = tot;
                     if (d.miniaddress) map[String(d.miniaddress).toUpperCase()] = tot;
