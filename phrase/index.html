@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <title>KeyUses Phrase — Seed Address Audit</title>
+    <script type="text/javascript" src="mds.js"></script>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f; --card: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.07);
+            --text: #e8e6e3; --text-dim: rgba(232,230,227,0.55); --accent: #f7931a;
+            --ok: #4ade80; --warn: #fbbf24; --risk: #f87171;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; display: flex; justify-content: center; }
+        .container { max-width: 780px; width: 100%; }
+        .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); padding: 4px 12px; background: rgba(247,147,26,0.08); border-radius: 4px; margin-bottom: 16px; }
+        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+        h1 .v { color: var(--text-dim); font-weight: 400; font-size: 0.6em; margin-left: 6px; }
+        .subtitle { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 22px; font-weight: 300; line-height: 1.6; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-bottom: 18px; }
+        .modes { display: flex; gap: 8px; margin-bottom: 18px; }
+        .mode-btn { flex: 1; padding: 10px; border-radius: 10px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; }
+        .mode-btn.active { border-color: rgba(247,147,26,0.4); color: var(--text); background: rgba(247,147,26,0.06); }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #ff5e3a); color: #fff; font-family: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: opacity 0.3s, transform 0.15s; }
+        .btn:hover { opacity: 0.92; } .btn:active { transform: scale(0.99); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-dim); margin-top: 10px; }
+        .btn-sec:hover { border-color: rgba(247,147,26,0.3); color: var(--text); }
+        textarea { width: 100%; min-height: 92px; padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text); font-family: ui-monospace, Menlo, monospace; font-size: 0.82rem; line-height: 1.5; outline: none; resize: vertical; margin-bottom: 12px; }
+        textarea:focus { border-color: rgba(247,147,26,0.3); }
+        textarea::placeholder { color: rgba(255,255,255,0.2); }
+        .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+        .chk { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; user-select: none; font-size: 0.8rem; color: var(--text-dim); }
+        .chk input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+        .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; font-weight: 600; }
+        .note { font-size: 0.72rem; color: var(--text-dim); line-height: 1.6; margin-top: 12px; } .note strong { color: var(--text); font-weight: 600; }
+        .hidden { display: none; }
+        .verdict { border-radius: 14px; padding: 22px; margin-bottom: 18px; text-align: center; border: 1px solid; }
+        .verdict h2 { font-size: 1.35rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
+        .verdict.ok { background: rgba(74,222,128,0.07); border-color: rgba(74,222,128,0.3); color: var(--ok); }
+        .verdict.warn { background: rgba(251,191,36,0.07); border-color: rgba(251,191,36,0.3); color: var(--warn); }
+        .verdict.risk { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.35); color: var(--risk); }
+        .verdict p { color: var(--text); font-size: 0.85rem; line-height: 1.6; }
+        .stats { display: flex; gap: 10px; margin-top: 16px; }
+        .stat { flex: 1; background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 10px; padding: 14px 8px; text-align: center; }
+        .stat b { display: block; font-size: 1.5rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+        .stat span { display: block; font-size: 0.62rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+        .stat.hero { border-color: rgba(247,147,26,0.45); background: rgba(247,147,26,0.07); }
+        .stat.hero b { color: var(--accent); }
+        @media (max-width: 480px) { .stats { flex-direction: column; } }
+        .reco { background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 14px; }
+        .reco label { display:block; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+        .reco code { display:block; font-family: ui-monospace, Menlo, monospace; font-size: 0.78rem; color: var(--accent); word-break: break-all; line-height: 1.5; }
+        .seedline { font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem; color: var(--text-dim); word-break: break-all; margin-top: 10px; }
+        .seedline b { color: var(--text); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+        th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+        th:first-child, td:first-child { text-align: left; }
+        th { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
+        td.mono { font-family: ui-monospace, Menlo, monospace; color: var(--text-dim); }
+        td.addr { cursor: pointer; max-width: 340px; }
+        td.addr .kn { color: var(--text-dim); font-size: 0.7rem; margin-right: 6px; }
+        td.addr .amono { font-family: ui-monospace, Menlo, monospace; font-size: 0.68rem; color: var(--text-dim); word-break: break-all; }
+        td.addr:hover .amono { color: var(--accent); }
+        td.addr .copyhint { font-size: 0.6rem; color: rgba(255,255,255,0.25); margin-left: 6px; }
+        td.addr .copied { color: var(--ok); font-size: 0.6rem; margin-left: 6px; opacity: 0; transition: opacity 0.2s; }
+        .chip { display:inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.66rem; font-weight: 700; }
+        .chip.ok { background: rgba(74,222,128,0.12); color: var(--ok); }
+        .chip.risk { background: rgba(248,113,113,0.14); color: var(--risk); }
+        .chip.warn { background: rgba(251,191,36,0.14); color: var(--warn); }
+        .tablewrap { overflow-x: auto; }
+        .status { margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 0.8rem; display:none; }
+        .status.show { display:block; } .status.error { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); color: var(--risk); }
+        .progress { height: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; margin: 16px 0 6px; }
+        .progress > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #ff5e3a); width: 0%; transition: width 0.2s; }
+        .plabel { font-size: 0.72rem; color: var(--text-dim); text-align: center; }
+        .footer { text-align: center; margin-top: 18px; font-size: 0.65rem; color: rgba(255,255,255,0.2); letter-spacing: 0.05em; }
+        .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation: s 0.7s linear infinite; vertical-align:-2px; margin-right:8px; }
+        @keyframes s { to { transform: rotate(360deg); } }
+        .coverage { font-size: 0.7rem; color: var(--text-dim); margin-top: 10px; text-align:center; }
+        code.inl { background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, Menlo, monospace; font-size: 0.92em; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="badge">Minima · Seed Address Audit</div>
+    <h1>KeyUses Phrase <span class="v" id="ver"></span></h1>
+    <p class="subtitle">
+        Type a Minima <strong>seed phrase</strong> (24/12 BIP39 words, or an “anyphrase”) and this dapp
+        <strong>derives that seed's default addresses right here on your device</strong> — in <strong>both key
+        schemes</strong>: the classic 64 keys every node creates today, and the 32 different keys a
+        <code class="inl">-blockaskeyuses</code> node (minimaCore 1.1.2.31+) creates from the same phrase —
+        then checks each one against the on-chain signature history and the canonical key-reuse list.
+        <strong>The phrase is never sent anywhere;</strong> only the resulting public addresses are looked up.
+    </p>
+
+    <div class="card" id="controls">
+        <div class="modes">
+            <button class="mode-btn active" id="m-phrase" onclick="setMode('phrase')">Seed phrase</button>
+            <button class="mode-btn" id="m-addrs" onclick="setMode('addrs')">Address list</button>
+        </div>
+
+        <div id="phrase-panel">
+            <span class="section-label">Seed phrase</span>
+            <textarea id="phrase" placeholder="word one two three …  (24 or 12 BIP39 words)" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+            <div class="row">
+                <label class="chk"><input type="checkbox" id="anyphrase"> This is an “anyphrase” (not standard BIP39 words)</label>
+            </div>
+            <div class="row">
+                <label class="chk">Classic keys to derive
+                    <select id="numkeys" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 8px;font-family:inherit">
+                        <option value="64" selected>64 (default wallet)</option>
+                        <option value="16">16 (faster)</option>
+                        <option value="8">8 (quick check)</option>
+                    </select>
+                </label>
+                <span style="font-size:0.75rem;color:var(--text-dim)">+ up to 32 block-as-keyuses keys (the new scheme's default) derived alongside</span>
+            </div>
+            <div class="note">
+                <strong>BIP39 mode</strong> normalises words exactly like the node (<code class="inl">cleanSeedPhrase</code>:
+                prefix-completes to full words, then upper-cases). Turn on <strong>anyphrase</strong> only if your seed
+                was created with a non-wordlist passphrase, so it is hashed verbatim — the two produce different seeds.
+            </div>
+        </div>
+
+        <div id="addrs-panel" class="hidden">
+            <span class="section-label">Addresses</span>
+            <textarea id="addrs" placeholder="MxG08…; MxG08…; MxG08…   (any separators)&#10;— or paste your node's `scripts` command output" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+            <div class="note">Paste one or more <code class="inl">Mx…</code>/<code class="inl">0x…</code> addresses, or the full
+                <code class="inl">scripts</code> output, to check addresses you already have (no derivation needed).</div>
+        </div>
+
+        <button class="btn" id="runBtn" onclick="run()">Derive &amp; audit</button>
+
+        <div id="prog" class="hidden">
+            <div class="progress"><i id="progBar"></i></div>
+            <div class="plabel" id="progLabel"></div>
+        </div>
+        <div class="status" id="statusBox"></div>
+    </div>
+
+    <div id="results" class="hidden">
+        <div class="verdict" id="verdict"></div>
+        <div class="card">
+            <div id="seedInfo" class="seedline"></div>
+            <div class="tablewrap" style="margin-top:14px">
+                <table>
+                    <thead><tr>
+                        <th>Address (tap to copy)</th><th>On-chain signatures</th><th>Spent coins</th><th>Balance</th><th>Status</th>
+                    </tr></thead>
+                    <tbody id="rows"></tbody>
+                </table>
+            </div>
+            <div class="coverage" id="coverage"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <span class="section-label">What this tells you</span>
+        <div style="font-size:0.82rem; line-height:1.7; color:var(--text-dim)">
+            <p>Minima keys are <strong>stateful</strong>: each key is a tree of <em>one-time</em> signatures
+            (classic: 64 keys of 262,144 leaves; <code class="inl">-blockaskeyuses</code> nodes: 32 different keys of
+            268,435,456 leaves, derived from the same seed), and a leaf is only secure if it signs <strong>once</strong>.
+            Re-using a leaf leaks the key and makes forgery progressively easier.</p>
+            <p style="margin-top:8px">This dapp reconstructs the addresses a seed produces under both schemes and reports, per address:
+            whether it appears in the <strong>witness-confirmed reuse list</strong>, how many times it has
+            <strong>signed on-chain</strong>, and its current balance. From the busiest key it computes the
+            <strong>safe <code class="inl">keyuses</code></strong> value to set when you next restore this seed, so a
+            re-sync never re-issues a leaf the chain has already seen.</p>
+            <p style="margin-top:8px"><strong>Privacy:</strong> the phrase and derived seed stay on your device — only the
+            resulting public <code class="inl">Mx…</code> addresses are sent to the eurobuddha archive for the lookup, and
+            addresses cannot move funds. For a fully offline derivation, disconnect after the addresses appear.</p>
+        </div>
+    </div>
+
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses Phrase v0.1.2</div>
+</div>
+
+<!-- derivation engine: sha3 + wordlist + core (also imported by the worker) -->
+<script src="sha3.js"></script>
+<script src="wordlist.js"></script>
+<script src="derive.js"></script>
+<script>
+var VERSION = "0.1.2";
+var AUDIT_API = "https://eurobuddha.com/keyaudit";
+var REUSE_API = "https://eurobuddha.com/reuse";
+var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
+var BACKEND_CHUNK = 200;    // backend caps at MAX_KEYS=256 per request; stay under it
+var MODE = "phrase";
+var busy = false;
+
+var HAS_MDS = false;
+if (typeof MDS !== "undefined" && MDS.init) {
+    try { MDS.init(function(msg){ if (msg.event === "inited"){ HAS_MDS = true; MDS.log("KeyUses Phrase v" + VERSION + " ready"); } }); } catch(e){}
+}
+document.getElementById("ver").textContent = "v" + VERSION;
+
+function setMode(m){
+    MODE = m;
+    document.getElementById("m-phrase").classList.toggle("active", m==="phrase");
+    document.getElementById("m-addrs").classList.toggle("active", m==="addrs");
+    document.getElementById("phrase-panel").classList.toggle("hidden", m!=="phrase");
+    document.getElementById("addrs-panel").classList.toggle("hidden", m!=="addrs");
+}
+function showError(m){ var b=document.getElementById("statusBox"); b.textContent=m; b.className="status show error"; }
+function clearError(){ document.getElementById("statusBox").className="status"; }
+function setBusy(b, label){
+    busy = b;
+    var x=document.getElementById("runBtn"); x.disabled=b;
+    x.innerHTML = b ? ('<span class="spin"></span>' + (label||"Working…")) : 'Derive &amp; audit';
+    document.getElementById("prog").classList.toggle("hidden", !b);
+}
+function setProg(done, total, label){
+    document.getElementById("progBar").style.width = (total ? Math.round(done/total*100) : 0) + "%";
+    document.getElementById("progLabel").textContent = label || (done + " / " + total);
+}
+
+/* ---------- entry ---------- */
+function run(){
+    if (busy) return;
+    clearError();
+    document.getElementById("results").classList.add("hidden");
+    if (MODE === "addrs") return runAddrs();
+    return runPhrase();
+}
+
+/* ---------- phrase mode: derive BOTH key sets locally, then audit them together ----------
+   classic:          numkeys keys, 64-leaf trees (what every node derived until now)
+   block-as-keyuses: min(numkeys,32) keys, 128-leaf trees (-blockaskeyuses node default is 32) */
+function runPhrase(){
+    var raw = document.getElementById("phrase").value;
+    var anyphrase = document.getElementById("anyphrase").checked;
+    var numkeys = parseInt(document.getElementById("numkeys").value, 10) || 64;
+    var newkeys = Math.min(numkeys, 32);
+    if (!raw.trim()){ showError("Type your seed phrase first."); return; }
+
+    var seed;
+    try { seed = KeyUsesDerive.seedFromPhrase(raw, anyphrase); }
+    catch(e){ showError(e.message + (anyphrase ? "" : "  (If your seed uses a custom passphrase, tick “anyphrase”.)")); return; }
+    var seedHex = "0x" + KeyUsesDerive._toHexUpper(seed);
+
+    var jobs = [];
+    for (var i = 0; i < numkeys; i++) jobs.push({ index: i, keysPerLevel: 64 });
+    for (var j = 0; j < newkeys; j++) jobs.push({ index: j, keysPerLevel: 128 });
+
+    setBusy(true, "Deriving keys…");
+    setProg(0, jobs.length, "Deriving key 0 / " + jobs.length + " …");
+    deriveAll(seedHex, jobs, function(derived){
+        // derived: [{index, keysPerLevel, address(0x), miniaddress(Mx), publickey}] in job order
+        auditAddresses(derived.map(function(d){ return d.miniaddress; }), function(stats, reuse){
+            setBusy(false);
+            renderResults(derived, stats, reuse, { seedHex: seedHex, anyphrase: anyphrase, numkeys: numkeys, newkeys: newkeys });
+        });
+    });
+}
+
+/* Derive every job ({index, keysPerLevel}) via a Web Worker pool (fast, non-blocking); fall back
+   to chunked inline derivation if workers are unavailable in this WebView. */
+function deriveAll(seedHex, jobs, done){
+    var n = jobs.length, out = {}, completed = 0, nextJob = 0, failed = null;
+    function keyOf(kpl, idx){ return kpl + ":" + idx; }
+    function finishOne(res){
+        if (res.ok === false){ failed = res.error; }
+        else out[keyOf(res.keysPerLevel, res.index)] = { index: res.index, keysPerLevel: res.keysPerLevel,
+            address: res.address, miniaddress: res.miniaddress, publickey: res.publickey };
+        completed++;
+        setProg(completed, n, "Deriving key " + completed + " / " + n + " …");
+        if (completed >= n){
+            if (failed){ setBusy(false); showError("Key derivation failed: " + failed); return; }
+            done(jobs.map(function(jb){ return out[keyOf(jb.keysPerLevel, jb.index)]; }));
+        }
+    }
+
+    var poolSize = 0, workers = [];
+    try {
+        var hw = (navigator && navigator.hardwareConcurrency) || 4;
+        poolSize = Math.max(1, Math.min(hw, 8, n));
+        for (var w = 0; w < poolSize; w++) workers.push(new Worker("derive.worker.js"));
+    } catch(e){ poolSize = 0; workers = []; }
+
+    if (poolSize > 0){
+        workers.forEach(function(worker){
+            worker.onmessage = function(ev){ finishOne(ev.data); pump(worker); };
+            worker.onerror = function(){ /* fall through: treat as inline for remaining */ };
+            pump(worker);
+        });
+        function pump(worker){
+            if (nextJob < n){ var jb = jobs[nextJob++];
+                worker.postMessage({ baseSeedHex: seedHex, index: jb.index, keysPerLevel: jb.keysPerLevel });
+            } else worker.terminate();
+        }
+    } else {
+        // inline fallback: derive one key per animation frame so the UI can paint the progress bar
+        var seedBytes = KeyUsesDerive._fromHex(seedHex);
+        function step(){
+            if (nextJob >= n) return;
+            var jb = jobs[nextJob++];
+            var a = KeyUsesDerive.deriveAddress(seedBytes, jb.index, null, jb.keysPerLevel);
+            finishOne({ ok:true, index:jb.index, keysPerLevel:a.keysPerLevel, address:a.hex, miniaddress:a.mx, publickey:a.publickey });
+            setTimeout(step, 0);
+        }
+        step();
+    }
+}
+
+/* ---------- address-list mode: no derivation, just audit what was pasted ---------- */
+function runAddrs(){
+    var raw = document.getElementById("addrs").value;
+    var list;
+    try { list = parseAddrInput(raw); }
+    catch(e){ showError(e.message); return; }
+    setBusy(true, "Auditing…");
+    setProg(0, 1, "Looking up " + list.length + " address(es) …");
+    auditAddresses(list, function(stats, reuse){
+        setBusy(false);
+        var derived = list.map(function(a, i){ return { index:i, miniaddress:a, address:a, publickey:null }; });
+        renderResults(derived, stats, reuse, { addrMode: true, count: list.length });
+    });
+}
+
+// Pull every Mx…/0x… token out of a plain list or a pasted `scripts`/command JSON; dedupe, keep order.
+function parseAddrInput(raw){
+    var toks = String(raw).match(/(Mx[0-9A-Za-z]{40,}|0x[0-9A-Fa-f]{64})/g) || [];
+    var seen = {}, out = [];
+    toks.forEach(function(t){ var k=t.toUpperCase(); if(!seen[k]){ seen[k]=1; out.push(t); } });
+    if (!out.length) throw new Error("No Mx…/0x… addresses found. Paste addresses or the `scripts` output.");
+    return out;
+}
+
+/* ---------- backend audit: /keyaudit?addrs= (spend stats) + /reuse?addrs= (reuse verdict) ---------- */
+function auditAddresses(addrs, done){
+    var stats = {};   // UPPER(addr or 0x) -> {sigs, coins, address, miniaddress}
+    var reuse = {};   // UPPER(0x address) -> {reused, reuse_count, balance}
+    var chunks = [];
+    for (var i = 0; i < addrs.length; i += BACKEND_CHUNK) chunks.push(addrs.slice(i, i + BACKEND_CHUNK));
+
+    var pending = chunks.length * 2;
+    if (pending === 0){ done(stats, reuse); return; }
+    var reachedAudit = false, reachedReuse = false;
+
+    chunks.forEach(function(chunk){
+        var q = encodeURIComponent(chunk.join(","));
+        backendGet(AUDIT_API + "?addrs=" + q, function(data){
+            if (data){ reachedAudit = true;
+                (data.addresses || []).forEach(function(u){ indexStat(stats, u); });
+            }
+            if (--pending === 0) finish();
+        });
+        backendGet(REUSE_API + "?addrs=" + q, function(data){
+            if (data){ reachedReuse = true;
+                (data.results || []).forEach(function(r){ if (r.address) reuse[String(r.address).toUpperCase()] = r; });
+            }
+            if (--pending === 0) finish();
+        });
+    });
+
+    function finish(){
+        if (!reachedAudit && !reachedReuse){ showError("Could not reach the audit service. Check your connection and try again."); }
+        done(stats, reuse);
+    }
+}
+function indexStat(stats, u){
+    if (!u) return;
+    var rec = { sigs: Number(u.spend_blocks || 0), coins: Number(u.spent_coins || 0),
+                address: u.address, miniaddress: u.miniaddress };
+    if (u.address)     stats[String(u.address).toUpperCase()] = rec;
+    if (u.miniaddress) stats[String(u.miniaddress).toUpperCase()] = rec;
+    if (u.input)       stats[String(u.input).toUpperCase()] = rec;
+}
+
+// GET that works both installed (MDS.net.GET, avoids CORS) and standalone (fetch).
+function backendGet(url, cb){
+    function parse(res){
+        if (!res) return null;
+        var b = res.response !== undefined ? res.response : res;
+        if (typeof b === "string"){ try { b = JSON.parse(b); } catch(e){ return null; } }
+        return b || null;
+    }
+    if (HAS_MDS && typeof MDS !== "undefined" && MDS.net && MDS.net.GET){
+        MDS.net.GET(url, function(res){ cb(parse(res)); });
+    } else if (typeof fetch !== "undefined"){
+        fetch(url).then(function(r){ return r.json(); }).then(function(j){ cb(j); }).catch(function(){ cb(null); });
+    } else { cb(null); }
+}
+
+/* ---------- render ---------- */
+function renderResults(derived, stats, reuse, meta){
+    var rows = [], anyReuse = false, recommended = 0, maxReuse = 0, unknown = 0;
+    derived.forEach(function(d){
+        var key0x = d.address ? String(d.address).toUpperCase() : null;
+        var keyMx = d.miniaddress ? String(d.miniaddress).toUpperCase() : null;
+        var st = (key0x && stats[key0x]) || (keyMx && stats[keyMx]) || null;
+        var rinfo = (key0x && reuse[key0x]) || null;   // reuse map is keyed by 0x address
+        // in address-list mode we only have Mx; the backend echoes the 0x form in stats — use it for reuse lookup
+        if (!rinfo && st && st.address) rinfo = reuse[String(st.address).toUpperCase()] || null;
+        var reused = !!(rinfo && rinfo.reused);
+        if (reused){ anyReuse = true; maxReuse = Math.max(maxReuse, Number(rinfo.reuse_count) || 0); }
+        var sigs = st ? st.sigs : 0, coins = st ? st.coins : 0;
+        var bal = rinfo && rinfo.balance !== undefined ? rinfo.balance : (st ? "" : null);
+        if (!st && !rinfo) unknown++;
+        // Worst-case uses for THIS key: spend_blocks undercounts (2 spends in one block = 1),
+        // so take the max of spend-blocks, spent-coins and the witness-confirmed count.
+        // keyuses too high only skips fresh leaves; too low re-signs a used leaf — round up.
+        // Only CLASSIC keys feed the recommended `keyuses` — on a -blockaskeyuses node the
+        // counter is the block height, which the node manages itself.
+        if (d.keysPerLevel !== 128)
+            recommended = Math.max(recommended, sigs, coins, rinfo ? (Number(rinfo.reuse_count) || 0) : 0);
+        rows.push({ i: d.index + 1, kpl: d.keysPerLevel, addr: d.miniaddress || d.address, sigs: sigs, coins: coins,
+                    balance: bal, reused: reused, reuseCount: rinfo ? Number(rinfo.reuse_count) : 0 });
+    });
+
+    renderVerdict(anyReuse, recommended, maxReuse, meta);
+    renderRows(rows);
+    renderSeedInfo(meta, derived.length);
+
+    var cov = document.getElementById("coverage");
+    cov.textContent = "On-chain signatures are counted from the eurobuddha archive (per spend-block; two spends of one "
+        + "address in a single block count once). Reuse flags come from the witness-confirmed canonical list. "
+        + (unknown ? (unknown + " address(es) had no on-chain history yet — unused, nothing to report.") : "");
+    document.getElementById("results").classList.remove("hidden");
+}
+
+function renderSeedInfo(meta, n){
+    var el = document.getElementById("seedInfo");
+    if (meta.addrMode){ el.innerHTML = "<b>" + n + "</b> address(es) checked."; return; }
+    el.innerHTML = "<b>" + meta.numkeys + "</b> classic + <b>" + meta.newkeys + "</b> block-as-keyuses addresses derived on-device from "
+        + (meta.anyphrase ? "an <b>anyphrase</b>" : "a <b>BIP39</b> phrase") + ". "
+        + "Base seed <span title='never sent anywhere'>" + esc(meta.seedHex.slice(0, 14)) + "…" + esc(meta.seedHex.slice(-6))
+        + "</span> — verify on your node with <code class=\"inl\">vault action:testphrase numkeys:" + meta.numkeys + "</code> "
+        + "(the block-as-keyuses set only reproduces on a node started with <code class=\"inl\">-blockaskeyuses</code>).";
+}
+
+function renderVerdict(anyReuse, recommended, maxReuse, meta){
+    var el = document.getElementById("verdict");
+    var reco = recommended + KEYUSES_MARGIN;
+    var tiles =
+        '<div class="stats">'
+        + '<div class="stat"><b>' + recommended.toLocaleString() + '</b><span>max key uses found<br>(busiest key, worst case)</span></div>'
+        + '<div class="stat"><b>+' + KEYUSES_MARGIN + '</b><span>safety margin</span></div>'
+        + '<div class="stat hero"><b>' + reco.toLocaleString() + '</b><span>set <code class="inl">keyuses</code> to this<br>when you resync</span></div>'
+        + '</div>';
+    var recoBox = tiles + (meta.addrMode ? "" :
+        '<div class="reco"><label>Safe keyuses when you next restore this seed (classic keys)</label>'
+        + '<code>archive action:import file:&lt;your-backup&gt; phrase:"&lt;your seed&gt;"'
+        + (meta.anyphrase ? ' anyphrase:true' : '') + ' keyuses:' + reco + '</code>'
+        + '<div style="margin-top:6px;font-size:0.78rem;color:var(--text-dim)">The <code class="inl">keyuses</code> value '
+        + 'applies to the classic 64-leaf keys only. A <code class="inl">-blockaskeyuses</code> node sets its key uses '
+        + 'from the current block height automatically — no value to pick, nothing to get wrong.</div></div>');
+
+    if (anyReuse){
+        var red = maxReuse > 3, worst = Number(maxReuse).toLocaleString();
+        var why = '<div class="reco" style="text-align:left"><label>Why this happens (almost always human error)</label>'
+            + '<ul style="margin:0 0 0 18px; font-size:0.8rem; line-height:1.7; color:var(--text)">'
+            + '<li>Two nodes/signers run on the <strong>same seed</strong> (each issues leaves 0,1,2… independently).</li>'
+            + '<li>A restore/re-sync set <code class="inl">keyuses</code> <strong>below</strong> the key\'s true prior usage.</li>'
+            + '<li>A wallet snapshot was <strong>rolled back</strong> past signatures already broadcast.</li></ul></div>';
+        el.className = red ? "verdict risk" : "verdict warn";
+        el.innerHTML = (red ? '<h2>⛔ Key re-use detected — migrate these funds</h2>' : '<h2>⚠ Key re-use detected — reduced security</h2>')
+            + '<p>One or more addresses from this seed appears in the <strong>witness-confirmed reuse list</strong>'
+            + ' (worst case: <strong>' + worst + ' uses</strong>). A one-time leaf is only secure if it signs once, so '
+            + (red ? 'at this level forging a new signature approaches practical for anyone who also obtains the raw signatures. '
+                   : 'this reuse has spent the key\'s security margin. ')
+            + 'Those raw signatures are pruned from the chain and not public today, so this is a <strong>latent</strong> '
+            + 'exposure rather than confirmed theft — but don\'t rely on it. <strong>Move all funds from the affected '
+            + 'address(es) to a wallet from a brand-new seed and retire this one.</strong></p>' + why + recoBox;
+    } else {
+        el.className = "verdict ok";
+        el.innerHTML = '<h2>✓ No re-use detected</h2>'
+            + '<p>None of this seed\'s addresses appears in the canonical reuse list. '
+            + (meta.addrMode ? '' : 'Restore it with the recommended <code class="inl">keyuses</code> below so a future '
+                + 're-sync always uses fresh leaves and never re-signs a leaf the chain has already seen.') + '</p>' + recoBox;
+    }
+}
+
+function renderRows(rows){
+    var tb = document.getElementById("rows"); tb.innerHTML = "";
+    var lastKpl = null;
+    rows.forEach(function(r){
+        if (r.kpl && r.kpl !== lastKpl){
+            lastKpl = r.kpl;
+            var head = document.createElement("tr");
+            var th = document.createElement("td");
+            th.colSpan = 5;
+            th.style.cssText = "padding:10px 8px 6px;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);border-bottom:1px solid var(--border)";
+            th.textContent = r.kpl === 128
+                ? "Block-as-keyuses keys — 128-leaf trees (nodes started with -blockaskeyuses)"
+                : "Classic keys — 64-leaf trees (every node today)";
+            head.appendChild(th);
+            tb.appendChild(head);
+        }
+        var cls, chip;
+        if (r.reused){ cls = r.reuseCount > 3 ? "risk" : "warn"; chip = "RE-USED" + (r.reuseCount > 0 ? " ×" + r.reuseCount : ""); }
+        else if (r.sigs > 0){ cls = "ok"; chip = "USED " + r.sigs; }
+        else { cls = "ok"; chip = "UNUSED"; }
+        var tr = document.createElement("tr");
+        var addrCell = document.createElement("td");
+        addrCell.className = "addr";
+        addrCell.setAttribute("data-addr", r.addr);
+        addrCell.onclick = function(){ copyAddr(addrCell); };
+        addrCell.innerHTML = '<span class="kn">#' + r.i + '</span><span class="amono"></span>'
+            + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
+        addrCell.querySelector(".amono").textContent = r.addr;
+        tr.appendChild(addrCell);
+        var bal = (r.balance === null || r.balance === undefined || r.balance === "") ? "—"
+                : Number(r.balance).toLocaleString(undefined, { maximumFractionDigits: 8 });
+        var rest = '<td>' + r.sigs.toLocaleString() + '</td>'
+            + '<td>' + r.coins.toLocaleString() + '</td>'
+            + '<td>' + bal + '</td>'
+            + '<td><span class="chip ' + cls + '">' + chip + '</span></td>';
+        var tmp = document.createElement("tbody"); tmp.innerHTML = "<tr>" + rest + "</tr>";
+        while (tmp.firstChild.firstChild) tr.appendChild(tmp.firstChild.firstChild);
+        tb.appendChild(tr);
+    });
+}
+
+function copyAddr(td){
+    var a = td.getAttribute("data-addr");
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(a);
+        else { var t = document.createElement("textarea"); t.value = a; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); }
+    } catch(e){}
+    var hint = td.querySelector(".copyhint"), done = td.querySelector(".copied");
+    if (hint) hint.style.opacity = 0;
+    if (done){ done.style.opacity = 1; setTimeout(function(){ done.style.opacity = 0; if (hint) hint.style.opacity = ""; }, 1300); }
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+</script>
+</body>
+</html>
