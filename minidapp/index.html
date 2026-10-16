@@ -104,11 +104,12 @@
     <div class="badge">Minima · Key Security Audit</div>
     <h1>KeyUses</h1>
     <p class="subtitle">
-        Minima signatures are <strong>stateful</strong>: each of your 64 keys must move to a fresh
+        Minima signatures are <strong>stateful</strong>: each of your keys must move to a fresh
         leaf every time it signs. If a seed re-sync set <code>keyuses</code> too low, your node can
         <strong>re-use a leaf it already spent on-chain</strong> — which weakens that key. This tool checks,
         for each key, how many times it has actually signed on-chain and compares that to your node's
-        own counter.
+        own counter. Works with classic keys (64/3) and the new <code>-blockaskeyuses</code> keys (128/4),
+        where the node tracks uses by block height instead of a manual counter.
     </p>
 
     <div class="card" id="controls">
@@ -121,7 +122,7 @@
         </div>
         <button class="btn" id="runBtn" onclick="runAudit()">Run Audit</button>
         <div class="note" id="privacy">
-            <strong>Privacy:</strong> in <em>eurobuddha archive</em> mode your 64 <em>public</em> keys are sent to
+            <strong>Privacy:</strong> in <em>eurobuddha archive</em> mode your <em>public</em> keys are sent to
             eurobuddha.com, which derives your addresses and returns how often each was spent. Public keys can't
             move funds, but they do reveal your addresses to that server. For full privacy run your own archive
             and use <em>My own archive</em> mode.
@@ -147,9 +148,11 @@
     <div class="card">
         <span class="section-label">What is key re-use, and why does it matter?</span>
         <div class="dim" style="font-size:0.82rem; line-height:1.7">
-            <p>Minima keys are <strong>stateful</strong>. Each key is a tree of 262,144 <em>one-time</em>
-            signatures (leaves). Signing safely means using a <strong>fresh leaf every time</strong> — your node
-            tracks this with a counter.</p>
+            <p>Minima keys are <strong>stateful</strong>. Each key is a tree of <em>one-time</em> signatures
+            (leaves) — 262,144 per classic key, 268,435,456 per <code>-blockaskeyuses</code> key. Signing safely
+            means using a <strong>fresh leaf every time</strong> — your node tracks this with a counter (classic),
+            or follows the block height so every signature lands on a leaf no earlier signature can have used
+            (block-as-keyuses).</p>
             <p style="margin-top:8px"><strong>Re-using a leaf</strong> — signing two different transactions with the
             same one-time key — <strong>weakens</strong> that key. A one-time signature only stays secure if it
             signs once; each reuse leaks more of the secret, so forging a fresh signature becomes progressively
@@ -173,7 +176,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.52</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.53</div>
 </div>
 
 <script>
@@ -182,7 +185,7 @@ var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
 var MODE = "hosted";
 
-MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.52 ready"); });
+MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.53 ready"); });
 
 function setMode(m){
     MODE = m;
@@ -258,8 +261,13 @@ function joinAndRender(localKeys, usageArr, archiveTip, reuseByAddr){
     usageArr.forEach(function(u){ if (u && u.publickey) byPk[String(u.publickey).toUpperCase()] = u; });
 
     var rows = [], anyRisk = false, anyReuse = false, recommended = 0, maxReuse = 0;
+    var classicCount = 0, blkCount = 0;
     localKeys.forEach(function(k, i){
         var local = Number(k.uses);
+        // block-as-keyuses key (keys action:list reports size/depth): uses ≈ block height,
+        // managed by the node — the counter checks and the keyuses advice don't apply to it.
+        var blk = Number(k.size) === 128;
+        if (blk) blkCount++; else classicCount++;
         var u = byPk[String(k.publickey).toUpperCase()];
         var st = rowStats(u);
         var addr = (u && (u.miniaddress || u.address)) || "(address unavailable)";
@@ -267,15 +275,15 @@ function joinAndRender(localKeys, usageArr, archiveTip, reuseByAddr){
         var rinfo = u && u.address ? reuseByAddr[String(u.address).toUpperCase()] : null;
         var confirmedReuse = !!(rinfo && rinfo.reused);
         if (confirmedReuse) { anyReuse = true; maxReuse = Math.max(maxReuse, Number(rinfo.reuse_count) || 0); }
-        // count-based risk signal: chain proves MORE signatures than the node's counter
-        var risk = st.sigs > local;
+        // count-based risk signal (classic only): chain proves MORE signatures than the node's counter
+        var risk = !blk && st.sigs > local;
         if (risk) anyRisk = true;
-        recommended = Math.max(recommended, Math.max(st.sigs, local));
-        rows.push({ i:i+1, addr:addr, local:local, sigs:st.sigs, coins:st.coins,
+        if (!blk) recommended = Math.max(recommended, Math.max(st.sigs, local));
+        rows.push({ i:i+1, blk:blk, addr:addr, local:local, sigs:st.sigs, coins:st.coins,
                     risk:risk, reused:confirmedReuse, reuseCount:(rinfo?Number(rinfo.reuse_count):0) });
     });
 
-    renderVerdict(anyRisk, anyReuse, recommended, maxReuse);
+    renderVerdict(anyRisk, anyReuse, recommended, maxReuse, { classic: classicCount, blk: blkCount });
     renderRows(rows);
     var cov = document.getElementById("coverage");
     cov.textContent = (archiveTip
@@ -288,11 +296,22 @@ function joinAndRender(localKeys, usageArr, archiveTip, reuseByAddr){
     document.getElementById("results").classList.remove("hidden");
 }
 
-function renderVerdict(anyRisk, anyReuse, recommended, maxReuse){
+function renderVerdict(anyRisk, anyReuse, recommended, maxReuse, schemes){
     var el = document.getElementById("verdict");
     var reco = recommended + KEYUSES_MARGIN;
-    var recoBox = '<div class="reco"><label>Recommended keyuses for your next seed re-sync</label>'
-        + '<code>archive action:import file:&lt;your-backup&gt; phrase:"&lt;your 24 words&gt;" keyuses:' + reco + '</code></div>';
+    var blkNote = '<div class="reco"><label>Block-as-keyuses keys</label>'
+        + '<div style="font-size:0.8rem; line-height:1.6; color:var(--text)">This node\'s 128/4 keys take their '
+        + 'key uses from the current block height automatically — no <code>keyuses</code> value is needed (or '
+        + 'possible to get wrong) for them on a re-sync.</div></div>';
+    var recoBox;
+    if (schemes && schemes.classic === 0 && schemes.blk > 0){
+        recoBox = blkNote;   // nothing classic to recommend for
+    } else {
+        recoBox = '<div class="reco"><label>Recommended keyuses for your next seed re-sync'
+            + (schemes && schemes.blk > 0 ? ' (classic keys)' : '') + '</label>'
+            + '<code>archive action:import file:&lt;your-backup&gt; phrase:"&lt;your 24 words&gt;" keyuses:' + reco + '</code></div>'
+            + (schemes && schemes.blk > 0 ? blkNote : '');
+    }
     if (anyReuse){
         var red = maxReuse > 3;
         var worst = Number(maxReuse).toLocaleString();
@@ -366,7 +385,7 @@ function renderRows(rows){
         addrCell.setAttribute("data-addr", r.addr);
         addrCell.onclick = function(){ copyAddr(addrCell); };
         // static markup only; the address is set via textContent (never innerHTML) to avoid injection
-        addrCell.innerHTML = '<span class="kn">#' + r.i + '</span>'
+        addrCell.innerHTML = '<span class="kn">#' + r.i + (r.blk ? ' · 128/4' : '') + '</span>'
             + '<span class="amono"></span>'
             + '<span class="copyhint">copy</span><span class="copied">copied ✓</span>';
         addrCell.querySelector(".amono").textContent = r.addr;
