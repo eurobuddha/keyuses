@@ -16,28 +16,28 @@
         }
         body { font-family: 'Manrope', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; display: flex; justify-content: center; }
         .container { max-width: 780px; width: 100%; }
-        .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); padding: 4px 12px; background: rgba(247,147,26,0.08); border-radius: 4px; margin-bottom: 16px; }
-        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); padding: 4px 12px; background: rgba(247,147,26,0.08); border-radius: 4px; margin-bottom: 16px; }
+        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
         h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
         .subtitle { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 22px; font-weight: 300; line-height: 1.6; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-bottom: 18px; }
         .modes { display: flex; gap: 8px; margin-bottom: 18px; }
-        .mode-btn { flex: 1; padding: 10px; border-radius: 10px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; }
+        .mode-btn { flex: 1; padding: 10px; border-radius: 10px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: color 0.2s, background 0.2s, border-color 0.2s; }
         .mode-btn.active { border-color: rgba(247,147,26,0.4); color: var(--text); background: rgba(247,147,26,0.06); }
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #ff5e3a); color: #fff; font-family: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: opacity 0.3s, transform 0.15s; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #ff5e3a); color: #231303; font-family: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: opacity 0.3s, transform 0.15s; }
         .btn:hover { opacity: 0.92; } .btn:active { transform: scale(0.99); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         textarea { width: 100%; min-height: 110px; padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text); font-family: monospace; font-size: 0.75rem; outline: none; resize: vertical; margin-bottom: 12px; }
         input[type="text"] { width: 100%; padding: 12px 14px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text); font-family: monospace; font-size: 0.78rem; outline: none; margin-bottom: 12px; }
         input[type="text"]:focus { border-color: rgba(247,147,26,0.3); }
-        input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
+        input[type="text"]::placeholder { color: rgba(255,255,255,0.45); }
         .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
         .btn-sec:hover { border-color: rgba(247,147,26,0.3); color: var(--text); }
-        .section-label { display: block; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; font-weight: 600; }
+        .section-label { display: block; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; font-weight: 600; }
         .addr-result { margin-top: 14px; padding: 14px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); font-size: 0.82rem; line-height: 1.6; }
         .addr-result .big { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
-        .addr-result .amono2 { font-family: monospace; font-size: 0.7rem; color: var(--text-dim); word-break: break-all; }
-        .addr-result .dim { color: var(--text-dim); font-size: 0.74rem; }
-        .note { font-size: 0.72rem; color: var(--text-dim); line-height: 1.6; margin-top: 12px; } .note strong { color: var(--text); font-weight: 600; }
+        .addr-result .amono2 { font-family: monospace; font-size: 0.75rem; color: var(--text-dim); word-break: break-all; }
+        .addr-result .dim { color: var(--text-dim); font-size: 0.75rem; }
+        .note { font-size: 0.75rem; color: var(--text-dim); line-height: 1.6; margin-top: 12px; } .note strong { color: var(--text); font-weight: 600; }
         .hidden { display: none; }
         .verdict { border-radius: 14px; padding: 22px; margin-bottom: 18px; text-align: center; border: 1px solid; }
         .verdict h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
@@ -46,30 +46,30 @@
         .verdict.risk { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.35); color: var(--risk); }
         .verdict p { color: var(--text); font-size: 0.85rem; line-height: 1.6; }
         .reco { background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 14px; }
-        .reco label { display:block; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+        .reco label { display:block; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
         .reco code { display:block; font-family: monospace; font-size: 0.78rem; color: var(--accent); word-break: break-all; line-height: 1.5; }
         table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
         th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
         th:first-child, td:first-child { text-align: left; }
-        th { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
+        th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
         td.mono { font-family: monospace; color: var(--text-dim); }
         td.addr { cursor: pointer; max-width: 340px; }
-        td.addr .kn { color: var(--text-dim); font-size: 0.7rem; margin-right: 6px; }
-        td.addr .amono { font-family: monospace; font-size: 0.68rem; color: var(--text-dim); word-break: break-all; }
+        td.addr .kn { color: var(--text-dim); font-size: 0.75rem; margin-right: 6px; }
+        td.addr .amono { font-family: monospace; font-size: 0.75rem; color: var(--text-dim); word-break: break-all; }
         td.addr:hover .amono { color: var(--accent); }
-        td.addr .copyhint { font-size: 0.6rem; color: rgba(255,255,255,0.25); margin-left: 6px; }
-        td.addr .copied { color: var(--ok); font-size: 0.6rem; margin-left: 6px; opacity: 0; transition: opacity 0.2s; }
-        .chip { display:inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.66rem; font-weight: 700; }
+        td.addr .copyhint { font-size: 0.75rem; color: rgba(255,255,255,0.45); margin-left: 6px; }
+        td.addr .copied { color: var(--ok); font-size: 0.75rem; margin-left: 6px; opacity: 0; transition: opacity 0.2s; }
+        .chip { display:inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
         .chip.ok { background: rgba(74,222,128,0.12); color: var(--ok); }
         .chip.risk { background: rgba(248,113,113,0.14); color: var(--risk); }
         .chip.warn { background: rgba(251,191,36,0.14); color: var(--warn); }
         .tablewrap { overflow-x: auto; }
         .status { margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 0.8rem; display:none; }
         .status.show { display:block; } .status.error { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); color: var(--risk); }
-        .footer { text-align: center; margin-top: 18px; font-size: 0.65rem; color: rgba(255,255,255,0.2); letter-spacing: 0.05em; }
-        .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation: s 0.7s linear infinite; vertical-align:-2px; margin-right:8px; }
+        .footer { text-align: center; margin-top: 18px; font-size: 0.75rem; color: rgba(255,255,255,0.45); letter-spacing: 0.05em; }
+        .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(35,19,3,0.3); border-top-color:#231303; border-radius:50%; animation: s 0.7s linear infinite; vertical-align:-2px; margin-right:8px; }
         @keyframes s { to { transform: rotate(360deg); } }
-        .coverage { font-size: 0.7rem; color: var(--text-dim); margin-top: 10px; text-align:center; }
+        .coverage { font-size: 0.75rem; color: var(--text-dim); margin-top: 10px; text-align:center; }
 
         /* Phone / narrow view: the 5-column table can't fit a full (untruncated) address AND the
            good/bad status without pushing the status off-screen. Reflow each key into a stacked
@@ -87,7 +87,7 @@
             }
             table td { display: block; border-bottom: none; text-align: left; padding: 0; }
             td.addr { max-width: none; padding-right: 88px; margin-bottom: 10px; }
-            td.addr .amono { font-size: 0.72rem; color: var(--text); }
+            td.addr .amono { font-size: 0.75rem; color: var(--text); }
             td[data-label] { display: inline-block; margin: 2px 16px 2px 0; font-size: 0.9rem; font-weight: 600; color: var(--text); }
             td[data-label]::before {
                 content: attr(data-label); display: block;
@@ -95,7 +95,7 @@
                 color: var(--text-dim); margin-bottom: 1px;
             }
             td.st { position: absolute; top: 12px; right: 12px; }
-            td.st .chip { font-size: 0.6rem; }
+            td.st .chip { font-size: 0.75rem; }
         }
     </style>
 </head>
@@ -176,7 +176,7 @@
         </div>
     </div>
 
-    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.53</div>
+    <div class="footer">eurobuddha · Minima Ecosystem · KeyUses v0.1.54</div>
 </div>
 
 <script>
@@ -185,7 +185,7 @@ var REUSE_API = "https://eurobuddha.com/reuse";
 var KEYUSES_MARGIN = 256;   // safety margin added to the recommended keyuses
 var MODE = "hosted";
 
-MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.53 ready"); });
+MDS.init(function(msg){ if (msg.event === "inited") MDS.log("KeyUses v0.1.54 ready"); });
 
 function setMode(m){
     MODE = m;
